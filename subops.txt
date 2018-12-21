@@ -1,0 +1,604 @@
+  Instructions accessing the stack
+
+     BRK
+
+        #  address R/W description
+       --- ------- --- -----------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  read next instruction byte (and throw it away),
+                       increment PC
+        3  $0100,S  W  push PCH on stack (with B flag set), decrement S
+        4  $0100,S  W  push PCL on stack, decrement S
+        5  $0100,S  W  push P on stack, decrement S
+        6   $FFFE   R  fetch PCL
+        7   $FFFF   R  fetch PCH
+
+     RTI
+
+        #  address R/W description
+       --- ------- --- -----------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  read next instruction byte (and throw it away)
+        3  $0100,S  R  increment S
+        4  $0100,S  R  pull P from stack, increment S
+        5  $0100,S  R  pull PCL from stack, increment S
+        6  $0100,S  R  pull PCH from stack
+
+     RTS
+
+        #  address R/W description
+       --- ------- --- -----------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  read next instruction byte (and throw it away)
+        3  $0100,S  R  increment S
+        4  $0100,S  R  pull PCL from stack, increment S
+        5  $0100,S  R  pull PCH from stack
+        6    PC     R  increment PC
+
+     PHA, PHP
+
+        #  address R/W description
+       --- ------- --- -----------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  read next instruction byte (and throw it away)
+        3  $0100,S  W  push register on stack, decrement S
+
+     PLA, PLP
+
+        #  address R/W description
+       --- ------- --- -----------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  read next instruction byte (and throw it away)
+        3  $0100,S  R  increment S
+        4  $0100,S  R  pull register from stack
+
+     JSR
+
+        #  address R/W description
+       --- ------- --- -------------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch low address byte, increment PC
+        3  $0100,S  R  internal operation (predecrement S?)
+        4  $0100,S  W  push PCH on stack, decrement S
+        5  $0100,S  W  push PCL on stack, decrement S
+        6    PC     R  copy low address byte to PCL, fetch high address
+                       byte to PCH
+
+  Accumulator or implied addressing
+
+        #  address R/W description
+       --- ------- --- -----------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  read next instruction byte (and throw it away)
+
+  Immediate addressing
+
+        #  address R/W description
+       --- ------- --- ------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch value, increment PC
+
+  Absolute addressing
+
+     JMP
+
+        #  address R/W description
+       --- ------- --- -------------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch low address byte, increment PC
+        3    PC     R  copy low address byte to PCL, fetch high address
+                       byte to PCH
+
+     Read instructions (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT,
+                        LAX, NOP)
+
+        #  address R/W description
+       --- ------- --- ------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch low byte of address, increment PC
+        3    PC     R  fetch high byte of address, increment PC
+        4  address  R  read from effective address
+
+     Read-Modify-Write instructions (ASL, LSR, ROL, ROR, INC, DEC,
+                                     SLO, SRE, RLA, RRA, ISB, DCP)
+
+        #  address R/W description
+       --- ------- --- ------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch low byte of address, increment PC
+        3    PC     R  fetch high byte of address, increment PC
+        4  address  R  read from effective address
+        5  address  W  write the value back to effective address,
+                       and do the operation on it
+        6  address  W  write the new value to effective address
+
+     Write instructions (STA, STX, STY, SAX)
+
+        #  address R/W description
+       --- ------- --- ------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch low byte of address, increment PC
+        3    PC     R  fetch high byte of address, increment PC
+        4  address  W  write register to effective address
+
+  Zero page addressing
+
+     Read instructions (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT,
+                        LAX, NOP)
+
+        #  address R/W description
+       --- ------- --- ------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch address, increment PC
+        3  address  R  read from effective address
+
+     Read-Modify-Write instructions (ASL, LSR, ROL, ROR, INC, DEC,
+                                     SLO, SRE, RLA, RRA, ISB, DCP)
+
+        #  address R/W description
+       --- ------- --- ------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch address, increment PC
+        3  address  R  read from effective address
+        4  address  W  write the value back to effective address,
+                       and do the operation on it
+        5  address  W  write the new value to effective address
+
+     Write instructions (STA, STX, STY, SAX)
+
+        #  address R/W description
+       --- ------- --- ------------------------------------------
+        1    PC     R  fetch opcode, increment PC
+        2    PC     R  fetch address, increment PC
+        3  address  W  write register to effective address
+
+  Zero page indexed addressing
+
+     Read instructions (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT,
+                        LAX, NOP)
+
+        #   address  R/W description
+       --- --------- --- ------------------------------------------
+        1     PC      R  fetch opcode, increment PC
+        2     PC      R  fetch address, increment PC
+        3   address   R  read from address, add index register to it
+        4  address+I* R  read from effective address
+
+       Notes: I denotes either index register (X or Y).
+
+              * The high byte of the effective address is always zero,
+                i.e. page boundary crossings are not handled.
+
+     Read-Modify-Write instructions (ASL, LSR, ROL, ROR, INC, DEC,
+                                     SLO, SRE, RLA, RRA, ISB, DCP)
+
+        #   address  R/W description
+       --- --------- --- ---------------------------------------------
+        1     PC      R  fetch opcode, increment PC
+        2     PC      R  fetch address, increment PC
+        3   address   R  read from address, add index register X to it
+        4  address+X* R  read from effective address
+        5  address+X* W  write the value back to effective address,
+                         and do the operation on it
+        6  address+X* W  write the new value to effective address
+
+       Note: * The high byte of the effective address is always zero,
+               i.e. page boundary crossings are not handled.
+
+     Write instructions (STA, STX, STY, SAX)
+
+        #   address  R/W description
+       --- --------- --- -------------------------------------------
+        1     PC      R  fetch opcode, increment PC
+        2     PC      R  fetch address, increment PC
+        3   address   R  read from address, add index register to it
+        4  address+I* W  write to effective address
+
+       Notes: I denotes either index register (X or Y).
+
+              * The high byte of the effective address is always zero,
+                i.e. page boundary crossings are not handled.
+
+  Absolute indexed addressing
+
+     Read instructions (LDA, LDX, LDY, EOR, AND, ORA, ADC, SBC, CMP, BIT,
+                        LAX, LAE, SHS, NOP)
+
+        #   address  R/W description
+       --- --------- --- ------------------------------------------
+        1     PC      R  fetch opcode, increment PC
+        2     PC      R  fetch low byte of address, increment PC
+        3     PC      R  fetch high byte of address,
+                         add index register to low address byte,
+                         increment PC
+        4  address+I* R  read from effective address,
+                         fix the high byte of effective address
+        5+ address+I  R  re-read from effective address
+
+       Notes: I denotes either index register (X or Y).
+
+              * The high byte of the effective address may be invalid
+                at this time, i.e. it may be smaller by $100.
+
+              + This cycle will be executed only if the effective address
+                was invalid during cycle #4, i.e. page boundary was crossed.
+
+     Read-Modify-Write instructions (ASL, LSR, ROL, ROR, INC, DEC,
+                                     SLO, SRE, RLA, RRA, ISB, DCP)
+
+        #   address  R/W description
+       --- --------- --- ------------------------------------------
+        1    PC       R  fetch opcode, increment PC
+        2    PC       R  fetch low byte of address, increment PC
+        3    PC       R  fetch high byte of address,
+                         add index register X to low address byte,
+                         increment PC
+        4  address+X* R  read from effective address,
+                         fix the high byte of effective address
+        5  address+X  R  re-read from effective address
+        6  address+X  W  write the value back to effective address,
+                         and do the operation on it
+        7  address+X  W  write the new value to effective address
+
+       Notes: * The high byte of the effective address may be invalid
+                at this time, i.e. it may be smaller by $100.
+
+     Write instructions (STA, STX, STY, SHA, SHX, SHY)
+
+        #   address  R/W description
+       --- --------- --- ------------------------------------------
+        1     PC      R  fetch opcode, increment PC
+        2     PC      R  fetch low byte of address, increment PC
+        3     PC      R  fetch high byte of address,
+                         add index register to low address byte,
+                         increment PC
+        4  address+I* R  read from effective address,
+                         fix the high byte of effective address
+        5  address+I  W  write to effective address
+
+       Notes: I denotes either index register (X or Y).
+
+              * The high byte of the effective address may be invalid
+                at this time, i.e. it may be smaller by $100. Because
+                the processor cannot undo a write to an invalid
+                address, it always reads from the address first.
+
+  Relative addressing (BCC, BCS, BNE, BEQ, BPL, BMI, BVC, BVS)
+
+        #   address  R/W description
+       --- --------- --- ---------------------------------------------
+        1     PC      R  fetch opcode, increment PC
+        2     PC      R  fetch operand, increment PC
+        3     PC      R  Fetch opcode of next instruction,
+                         If branch is taken, add operand to PCL.
+                         Otherwise increment PC.
+        4+    PC*     R  Fetch opcode of next instruction.
+                         Fix PCH. If it did not change, increment PC.
+        5!    PC      R  Fetch opcode of next instruction,
+                         increment PC.
+
+       Notes: The opcode fetch of the next instruction is included to
+              this diagram for illustration purposes. When determining
+              real execution times, remember to subtract the last
+              cycle.
+
+              * The high byte of Program Counter (PCH) may be invalid
+                at this time, i.e. it may be smaller or bigger by $100.
+
+              + If branch is taken, this cycle will be executed.
+
+              ! If branch occurs to different page, this cycle will be
+                executed.
+
+  Indexed indirect addressing
+
+     Read instructions (LDA, ORA, EOR, AND, ADC, CMP, SBC, LAX)
+
+        #    address   R/W description
+       --- ----------- --- ------------------------------------------
+        1      PC       R  fetch opcode, increment PC
+        2      PC       R  fetch pointer address, increment PC
+        3    pointer    R  read from the address, add X to it
+        4   pointer+X   R  fetch effective address low
+        5  pointer+X+1  R  fetch effective address high
+        6    address    R  read from effective address
+
+       Note: The effective address is always fetched from zero page,
+             i.e. the zero page boundary crossing is not handled.
+
+     Read-Modify-Write instructions (SLO, SRE, RLA, RRA, ISB, DCP)
+
+        #    address   R/W description
+       --- ----------- --- ------------------------------------------
+        1      PC       R  fetch opcode, increment PC
+        2      PC       R  fetch pointer address, increment PC
+        3    pointer    R  read from the address, add X to it
+        4   pointer+X   R  fetch effective address low
+        5  pointer+X+1  R  fetch effective address high
+        6    address    R  read from effective address
+        7    address    W  write the value back to effective address,
+                           and do the operation on it
+        8    address    W  write the new value to effective address
+
+       Note: The effective address is always fetched from zero page,
+             i.e. the zero page boundary crossing is not handled.
+
+     Write instructions (STA, SAX)
+
+        #    address   R/W description
+       --- ----------- --- ------------------------------------------
+        1      PC       R  fetch opcode, increment PC
+        2      PC       R  fetch pointer address, increment PC
+        3    pointer    R  read from the address, add X to it
+        4   pointer+X   R  fetch effective address low
+        5  pointer+X+1  R  fetch effective address high
+        6    address    W  write to effective address
+
+       Note: The effective address is always fetched from zero page,
+             i.e. the zero page boundary crossing is not handled.
+
+  Indirect indexed addressing
+
+     Read instructions (LDA, EOR, AND, ORA, ADC, SBC, CMP)
+
+        #    address   R/W description
+       --- ----------- --- ------------------------------------------
+        1      PC       R  fetch opcode, increment PC
+        2      PC       R  fetch pointer address, increment PC
+        3    pointer    R  fetch effective address low
+        4   pointer+1   R  fetch effective address high,
+                           add Y to low byte of effective address
+        5   address+Y*  R  read from effective address,
+                           fix high byte of effective address
+        6+  address+Y   R  read from effective address
+
+       Notes: The effective address is always fetched from zero page,
+              i.e. the zero page boundary crossing is not handled.
+
+              * The high byte of the effective address may be invalid
+                at this time, i.e. it may be smaller by $100.
+
+              + This cycle will be executed only if the effective address
+                was invalid during cycle #5, i.e. page boundary was crossed.
+
+     Read-Modify-Write instructions (SLO, SRE, RLA, RRA, ISB, DCP)
+
+        #    address   R/W description
+       --- ----------- --- ------------------------------------------
+        1      PC       R  fetch opcode, increment PC
+        2      PC       R  fetch pointer address, increment PC
+        3    pointer    R  fetch effective address low
+        4   pointer+1   R  fetch effective address high,
+                           add Y to low byte of effective address
+        5   address+Y*  R  read from effective address,
+                           fix high byte of effective address
+        6   address+Y   R  read from effective address
+        7   address+Y   W  write the value back to effective address,
+                           and do the operation on it
+        8   address+Y   W  write the new value to effective address
+
+       Notes: The effective address is always fetched from zero page,
+              i.e. the zero page boundary crossing is not handled.
+
+              * The high byte of the effective address may be invalid
+                at this time, i.e. it may be smaller by $100.
+
+     Write instructions (STA, SHA)
+
+        #    address   R/W description
+       --- ----------- --- ------------------------------------------
+        1      PC       R  fetch opcode, increment PC
+        2      PC       R  fetch pointer address, increment PC
+        3    pointer    R  fetch effective address low
+        4   pointer+1   R  fetch effective address high,
+                           add Y to low byte of effective address
+        5   address+Y*  R  read from effective address,
+                           fix high byte of effective address
+        6   address+Y   W  write to effective address
+
+       Notes: The effective address is always fetched from zero page,
+              i.e. the zero page boundary crossing is not handled.
+
+              * The high byte of the effective address may be invalid
+                at this time, i.e. it may be smaller by $100.
+
+  Absolute indirect addressing (JMP)
+
+        #   address  R/W description
+       --- --------- --- ------------------------------------------
+        1     PC      R  fetch opcode, increment PC
+        2     PC      R  fetch pointer address low, increment PC
+        3     PC      R  fetch pointer address high, increment PC
+        4   pointer   R  fetch low address to latch
+        5  pointer+1* R  fetch PCH, copy latch to PCL
+
+       Note: * The PCH will always be fetched from the same page
+               than PCL, i.e. page boundary crossing is not handled.
+
+ 0     PC      R  fetch opcode, increment PC
+ 1     PC      R  read next instruction byte (and throw it away), increment PC
+ 2  $0100,S    W  push PCH on stack (with B flag set), decrement S
+ 3  $0100,S    W  push PCL on stack, decrement S
+ 4  $0100,S    W  push P on stack, decrement S
+ 5   $FFFE     R  fetch PCL
+ 6   $FFFF     R  fetch PCH
+ 7    PC       R  read next instruction byte (and throw it away)
+ 8  $0100,S    R  increment S
+ 9  $0100,S    R  pull P from stack, increment S
+10  $0100,S    R  pull PCL from stack, increment S
+11  $0100,S    R  pull PCH from stack
+12    PC       R  increment PC
+13  $0100,S    W  push A on stack, decrement S
+14  $0100,S    R  pull A from stack
+14  $0100,S    R  pull P from stack
+15    PC       R  fetch low address byte, increment PC
+16  $0100,S    R  internal operation (predecrement S?)
+17  $0100,S    W  push PCH on stack, decrement S
+18  $0100,S    W  push PCL on stack, decrement S
+19    PC       R  copy low address byte to PCL, fetch high address byte to PCH
+20    PC       R  read next instruction byte (and throw it away)
+21    PC       R  fetch value, increment PC
+22    PC       R  fetch low byte of address, increment PC
+23    PC       R  fetch high byte of address, increment PC
+24  address    R  read from effective address
+25  address    W  write the value back to effective address, and do the operation on it
+26  address    W  write the new value to effective address
+27  address    W  write A to effective address
+27  address    W  write X to effective address
+27  address    W  write Y to effective address
+
+op-sty/cpy-mem
+op-T3-ind-y
+op-T2-abs-y
+op-T0-iny/dey
+x-op-T0-tya
+op-T0-cpy/iny
+op-T2-idx-x-xy
+op-xy
+op-T2-ind-x
+x-op-T0-txa
+op-T0-dex
+op-T0-cpx/inx
+op-from-x
+op-T0-txs
+op-T0-ldx/tax/tsx
+op-T+-dex
+op-T+-inx
+op-T0-tsx
+op-T+-iny/dey
+op-T0-ldy-mem
+op-T0-tay/ldy-not-idx
+op-T0-jsr
+op-T5-brk
+op-T0-php/pha
+op-T4-rts
+op-T3-plp/pla
+op-T5-rti
+op-ror
+op-T2
+op-T0-eor
+op-jmp
+op-T2-abs
+op-T0-ora
+op-T2-ADL/ADD
+op-T0
+op-T2-stack
+op-T3-stack/bit/jmp
+op-T4-brk/jsr
+op-T4-rti
+op-T3-ind-x
+op-T4-ind-y
+op-T2-ind-y
+op-T3-abs-idx
+op-plp/pla
+op-inc/nop
+op-T4-ind-x
+x-op-T3-ind-y
+op-rti/rts
+op-T2-jsr
+op-T0-cpx/cpy/inx/iny
+op-T0-cmp
+op-T0-sbc
+op-T0-adc/sbc
+op-rol/ror
+op-T3-jmp
+op-shift
+op-T5-jsr
+op-T2-stack-access
+op-T0-tya
+op-T+-ora/and/eor/adc
+op-T+-adc/sbc
+op-T+-shift-a
+op-T0-txa
+op-T0-pla
+op-T0-lda
+op-T0-acc
+op-T0-tay
+op-T0-shift-a
+op-T0-tax
+op-T0-bit
+op-T0-and
+op-T4-abs-idx
+op-T5-ind-y
+op-branch-done
+op-T2-pha
+op-T0-shift-right-a
+op-shift-right
+op-T2-brk
+op-T3-jsr
+op-sta/cmp
+op-T2-branch
+op-T2-zp/zp-idx
+op-T2-ind
+op-T2-abs-access
+op-T5-rts
+op-T4
+op-T3
+op-T0-brk/rti
+op-T0-jmp
+op-T5-ind-x
+op-T3-abs/idx/ind
+x-op-T4-ind-y
+x-op-T3-abs-idx
+op-T3-branch
+op-brk/rti
+op-jsr
+x-op-jmp
+op-push/pull
+op-store
+op-T4-brk
+op-T2-php
+op-T2-php/pha
+op-T4-jmp
+op-T5-rti/rts
+xx-op-T5-jsr
+op-T2-jmp-abs
+x-op-T3-plp/pla
+op-lsr/ror/dec/inc
+op-asl/rol
+op-T0-cli/sei
+op-T+-bit
+op-T0-clc/sec
+op-T3-mem-zp-idx
+x-op-T+-adc/sbc
+x-op-T0-bit
+op-T0-plp
+x-op-T4-rti
+op-T+-cmp
+op-T+-cpx/cpy-abs
+op-T+-asl/rol-a
+op-T+-cpx/cpy-imm/zp
+x-op-push/pull
+op-T0-cld/sed
+#op-branch-bit6
+op-T3-mem-abs
+op-T2-mem-zp
+op-T5-mem-ind-idx
+op-T4-mem-abs-idx
+#op-branch-bit7
+op-clv
+op-implied
+
+t5
+t4
+t3
+t2
+notir1
+irline3
+notir0
+ir7
+notir7
+ir4
+notir4
+ir3
+notir3
+ir2
+notir2
+ir6
+notir6
+ir5
+notir5
+clock1
+clock2
+
+000000 000000000000000 0100010000000000 00000000000000000 0010000000000000001 
