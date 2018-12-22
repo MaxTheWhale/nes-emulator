@@ -36,26 +36,26 @@ const char instrs[256][4] = { "BRK", "ORA", "XXX", "SLO", "DOP", "ORA", "ASL", "
 							  "BEQ", "SBC", "XXX", "ISC", "DOP", "SBC", "INC", "ISC",
 							  "SED", "SBC", "NOP", "ISC", "TOP", "SBC", "INC", "ISC" };
 
-inline void setCarry(uint8_t *p)       { *p |= 1; }
-inline void setZero(uint8_t *p)        { *p |= 2; }
-inline void setInterrupt(uint8_t *p)   { *p |= 4; }
-inline void setDecimal(uint8_t *p)     { *p |= 8; }
-inline void setOverflow(uint8_t *p)    { *p |= 64; }
-inline void setNegative(uint8_t *p)    { *p |= 128; }
+void setCarry(uint8_t *p)       { *p |= 1; }
+void setZero(uint8_t *p)        { *p |= 2; }
+void setInterrupt(uint8_t *p)   { *p |= 4; }
+void setDecimal(uint8_t *p)     { *p |= 8; }
+void setOverflow(uint8_t *p)    { *p |= 64; }
+void setNegative(uint8_t *p)    { *p |= 128; }
 
-inline void clearCarry(uint8_t *p)     { *p &= 254; }
-inline void clearZero(uint8_t *p)      { *p &= 253; }
-inline void clearInterrupt(uint8_t *p) { *p &= 251; }
-inline void clearDecimal(uint8_t *p)   { *p &= 247; }
-inline void clearOverflow(uint8_t *p)  { *p &= 191; }
-inline void clearNegative(uint8_t *p)  { *p &= 127; }
+void clearCarry(uint8_t *p)     { *p &= 254; }
+void clearZero(uint8_t *p)      { *p &= 253; }
+void clearInterrupt(uint8_t *p) { *p &= 251; }
+void clearDecimal(uint8_t *p)   { *p &= 247; }
+void clearOverflow(uint8_t *p)  { *p &= 191; }
+void clearNegative(uint8_t *p)  { *p &= 127; }
 
-inline uint8_t checkCarry(uint8_t p)     { return p & 1; }
-inline uint8_t checkZero(uint8_t p)      { return p & 2; }
-inline uint8_t checkInterrupt(uint8_t p) { return p & 4; }
-inline uint8_t checkDecimal(uint8_t p)   { return p & 8; }
-inline uint8_t checkOverflow(uint8_t p)  { return p & 64; }
-inline uint8_t checkNegative(uint8_t p)  { return p & 128; }
+uint8_t checkCarry(uint8_t p)     { return p & 1; }
+uint8_t checkZero(uint8_t p)      { return p & 2; }
+uint8_t checkInterrupt(uint8_t p) { return p & 4; }
+uint8_t checkDecimal(uint8_t p)   { return p & 8; }
+uint8_t checkOverflow(uint8_t p)  { return p & 64; }
+uint8_t checkNegative(uint8_t p)  { return p & 128; }
 
 typedef void (*opPtr)(cpu*);  
 struct cpu
@@ -65,6 +65,7 @@ struct cpu
     uint8_t y;
     uint8_t stackPointer;
 	uint8_t temp;
+	uint8_t dummy;
     uint8_t flags;
     uint16_t pc;
     uint8_t *pcL;
@@ -74,9 +75,11 @@ struct cpu
     uint8_t *adH;
 	uint8_t currentOp;
 	uint8_t tick;
-	opPtr ops[256][7];
+
+	opPtr ops[256][8];
 
     uint8_t *memory[0x10000];
+	uint8_t *memoryTRUE[0x10000];
 };
 typedef struct cpu cpu;
 
@@ -634,6 +637,11 @@ void stx(cpu *c)
 	*c->memory[c->ad] = c->x;
 	c->tick = 0xff;
 }
+void aax(cpu *c)
+{
+	*c->memory[c->ad] = c->accumulator & c->x;
+	c->tick = 0xff;
+}
 void sty(cpu *c)
 {
 	*c->memory[c->ad] = c->y;
@@ -641,14 +649,12 @@ void sty(cpu *c)
 }
 void dec(cpu *c)
 {
-	c->temp--;
-	writeMemory(c, c->ad, c->temp);
+	writeMemory(c, c->ad, c->temp - 1);
 	c->tick = 0xff;
 }
 void inc(cpu *c)
 {
-	c->temp++;
-	writeMemory(c, c->ad, c->temp);
+	writeMemory(c, c->ad, c->temp + 1);
 	c->tick = 0xff;
 }
 void lsrAccumulator(cpu *c)
@@ -718,6 +724,36 @@ void rolMemory(cpu *c)
 	else clearCarry(&c->flags);
 	writeMemory(c, c->ad, val);
 	c->tick = 0xff;
+}
+void dcp(cpu *c)
+{
+	dec(c);
+	cmpMemory(c);
+}
+void isc(cpu *c)
+{
+	inc(c);
+	sbcMemory(c);
+}
+void rla(cpu *c)
+{
+	rolMemory(c);
+	andMemory(c);
+}
+void rra(cpu *c)
+{
+	rorMemory(c);
+	adcMemory(c);
+}
+void slo(cpu *c)
+{
+	aslMemory(c);
+	oraMemory(c);
+}
+void sre(cpu *c)
+{
+	lsrMemory(c);
+	eorMemory(c);
 }
 void beq(cpu *c)
 {
@@ -813,7 +849,7 @@ void branch(cpu *c)
 	{
 		if (*c->pcL < c->temp)
 		{
-			c->pcH++;
+			(*c->pcH)++;
 			c->tick = 0xff;
 		}
 		else
@@ -827,7 +863,7 @@ void branch(cpu *c)
 		uint8_t prev = *c->pcL - c->temp;
 		if (*c->pcL > prev)
 		{
-			c->pcH--;
+			(*c->pcH)--;
 			c->tick = 0xff;
 		}
 		else
@@ -858,16 +894,16 @@ cpu *cpu_create()
     newCPU->adH = newCPU->adL + 1;
 	newCPU->tick = 0xff;
 	newCPU->stackPointer = 0xfd;
+	for (int i = 0; i < 0x10000; i++)
+    {
+        newCPU->memory[i] = &(newCPU->dummy);
+    }
     for (int i = 0; i < 4; i++)
     {
         for (int j = 0; j < 0x800; j++)
         {
             newCPU->memory[(i*0x800) + j] = ram + j;
         }
-    }
-	for (int i = 0x2000; i < 0x4000; i++)
-    {
-        newCPU->memory[i] = &newCPU->temp;
     }
 	for (int i = 0; i < 0x100; i++)
     {
@@ -1067,6 +1103,13 @@ cpu *cpu_create()
 	newCPU->ops[0xb9][1] = fetchADL;
 	newCPU->ops[0xd9][1] = fetchADL;
 	newCPU->ops[0xf9][1] = fetchADL;
+
+	newCPU->ops[0x1b][1] = fetchADL;
+	newCPU->ops[0x3b][1] = fetchADL;
+	newCPU->ops[0x5b][1] = fetchADL;
+	newCPU->ops[0x7b][1] = fetchADL;
+	newCPU->ops[0xdb][1] = fetchADL;
+	newCPU->ops[0xfb][1] = fetchADL;
 	
 
 	newCPU->ops[0x0d][2] = fetchADH;
@@ -1145,6 +1188,13 @@ cpu *cpu_create()
 	newCPU->ops[0xd9][2] = fetchADH;
 	newCPU->ops[0xf9][2] = fetchADH;
 
+	newCPU->ops[0x1b][2] = fetchADH;
+	newCPU->ops[0x3b][2] = fetchADH;
+	newCPU->ops[0x5b][2] = fetchADH;
+	newCPU->ops[0x7b][2] = fetchADH;
+	newCPU->ops[0xdb][2] = fetchADH;
+	newCPU->ops[0xfb][2] = fetchADH;
+
 
 	newCPU->ops[0x01][2] = readAddress;
 	newCPU->ops[0x11][2] = readAddress;
@@ -1180,6 +1230,19 @@ cpu *cpu_create()
 	newCPU->ops[0xe3][2] = readAddress;
 	newCPU->ops[0xf3][2] = readAddress;
 
+	newCPU->ops[0x03][5] = readAddress;
+	newCPU->ops[0x13][5] = readAddress;
+	newCPU->ops[0x23][5] = readAddress;
+	newCPU->ops[0x33][5] = readAddress;
+	newCPU->ops[0x43][5] = readAddress;
+	newCPU->ops[0x53][5] = readAddress;
+	newCPU->ops[0x63][5] = readAddress;
+	newCPU->ops[0x73][5] = readAddress;
+	newCPU->ops[0xc3][5] = readAddress;
+	newCPU->ops[0xd3][5] = readAddress;
+	newCPU->ops[0xe3][5] = readAddress;
+	newCPU->ops[0xf3][5] = readAddress;
+
 	newCPU->ops[0x0e][3] = readAddress;
 	newCPU->ops[0x1e][4] = readAddress;
 	newCPU->ops[0x2e][3] = readAddress;
@@ -1199,13 +1262,46 @@ cpu *cpu_create()
 	newCPU->ops[0x66][2] = readAddress;
 	newCPU->ops[0xc6][2] = readAddress;
 	newCPU->ops[0xe6][2] = readAddress;
-
 	newCPU->ops[0xf6][3] = readAddress;
 	newCPU->ops[0x16][3] = readAddress;
 	newCPU->ops[0x36][3] = readAddress;
 	newCPU->ops[0x56][3] = readAddress;
 	newCPU->ops[0x76][3] = readAddress;
 	newCPU->ops[0xd6][3] = readAddress;
+
+	newCPU->ops[0x0f][3] = readAddress;
+	newCPU->ops[0x2f][3] = readAddress;
+	newCPU->ops[0x4f][3] = readAddress;
+	newCPU->ops[0x6f][3] = readAddress;
+	newCPU->ops[0xcf][3] = readAddress;
+	newCPU->ops[0xef][3] = readAddress;
+	newCPU->ops[0x1f][4] = readAddress;
+	newCPU->ops[0x3f][4] = readAddress;
+	newCPU->ops[0x5f][4] = readAddress;
+	newCPU->ops[0x7f][4] = readAddress;
+	newCPU->ops[0xdf][4] = readAddress;
+	newCPU->ops[0xff][4] = readAddress;
+
+	newCPU->ops[0x1b][4] = readAddress;
+	newCPU->ops[0x3b][4] = readAddress;
+	newCPU->ops[0x5b][4] = readAddress;
+	newCPU->ops[0x7b][4] = readAddress;
+	newCPU->ops[0xdb][4] = readAddress;
+	newCPU->ops[0xfb][4] = readAddress;
+
+	newCPU->ops[0x07][2] = readAddress;
+	newCPU->ops[0x27][2] = readAddress;
+	newCPU->ops[0x47][2] = readAddress;
+	newCPU->ops[0x67][2] = readAddress;
+	newCPU->ops[0xc7][2] = readAddress;
+	newCPU->ops[0xe7][2] = readAddress;
+	newCPU->ops[0xf7][3] = readAddress;
+	newCPU->ops[0x17][3] = readAddress;
+	newCPU->ops[0x37][3] = readAddress;
+	newCPU->ops[0x57][3] = readAddress;
+	newCPU->ops[0x77][3] = readAddress;
+	newCPU->ops[0xd7][3] = readAddress;
+
 
 	newCPU->ops[0x6c][3] = readAddress;
 
@@ -1223,6 +1319,32 @@ cpu *cpu_create()
 	newCPU->ops[0xe6][3] = writeAddress;
 	newCPU->ops[0xf6][4] = writeAddress;
 
+	newCPU->ops[0x07][3] = writeAddress;
+	newCPU->ops[0x17][4] = writeAddress;
+	newCPU->ops[0x27][3] = writeAddress;
+	newCPU->ops[0x37][4] = writeAddress;
+	newCPU->ops[0x47][3] = writeAddress;
+	newCPU->ops[0x57][4] = writeAddress;
+	newCPU->ops[0x67][3] = writeAddress;
+	newCPU->ops[0x77][4] = writeAddress;
+	newCPU->ops[0xc7][3] = writeAddress;
+	newCPU->ops[0xd7][4] = writeAddress;
+	newCPU->ops[0xe7][3] = writeAddress;
+	newCPU->ops[0xf7][4] = writeAddress;
+
+	newCPU->ops[0x03][6] = writeAddress;
+	newCPU->ops[0x13][6] = writeAddress;
+	newCPU->ops[0x23][6] = writeAddress;
+	newCPU->ops[0x33][6] = writeAddress;
+	newCPU->ops[0x43][6] = writeAddress;
+	newCPU->ops[0x53][6] = writeAddress;
+	newCPU->ops[0x63][6] = writeAddress;
+	newCPU->ops[0x73][6] = writeAddress;
+	newCPU->ops[0xc3][6] = writeAddress;
+	newCPU->ops[0xd3][6] = writeAddress;
+	newCPU->ops[0xe3][6] = writeAddress;
+	newCPU->ops[0xf3][6] = writeAddress;
+
 	newCPU->ops[0x0e][4] = writeAddress;
 	newCPU->ops[0x2e][4] = writeAddress;
 	newCPU->ops[0x4e][4] = writeAddress;
@@ -1230,12 +1352,32 @@ cpu *cpu_create()
 	newCPU->ops[0xce][4] = writeAddress;
 	newCPU->ops[0xee][4] = writeAddress;
 
+	newCPU->ops[0x0f][4] = writeAddress;
+	newCPU->ops[0x2f][4] = writeAddress;
+	newCPU->ops[0x4f][4] = writeAddress;
+	newCPU->ops[0x6f][4] = writeAddress;
+	newCPU->ops[0xcf][4] = writeAddress;
+	newCPU->ops[0xef][4] = writeAddress;
+	newCPU->ops[0x1f][5] = writeAddress;
+	newCPU->ops[0x3f][5] = writeAddress;
+	newCPU->ops[0x5f][5] = writeAddress;
+	newCPU->ops[0x7f][5] = writeAddress;
+	newCPU->ops[0xdf][5] = writeAddress;
+	newCPU->ops[0xff][5] = writeAddress;
+
 	newCPU->ops[0x1e][5] = writeAddress;
 	newCPU->ops[0x3e][5] = writeAddress;
 	newCPU->ops[0x5e][5] = writeAddress;
 	newCPU->ops[0x7e][5] = writeAddress;
 	newCPU->ops[0xde][5] = writeAddress;
 	newCPU->ops[0xfe][5] = writeAddress;
+
+	newCPU->ops[0x1b][5] = writeAddress;
+	newCPU->ops[0x3b][5] = writeAddress;
+	newCPU->ops[0x5b][5] = writeAddress;
+	newCPU->ops[0x7b][5] = writeAddress;
+	newCPU->ops[0xdb][5] = writeAddress;
+	newCPU->ops[0xfb][5] = writeAddress;
 
 	newCPU->ops[0x14][2] = readZpX;
 	newCPU->ops[0x34][2] = readZpX;
@@ -1261,6 +1403,13 @@ cpu *cpu_create()
 	newCPU->ops[0x76][2] = readZpX;
 	newCPU->ops[0xd6][2] = readZpX;
 	newCPU->ops[0xf6][2] = readZpX;
+
+	newCPU->ops[0x17][2] = readZpX;
+	newCPU->ops[0x37][2] = readZpX;
+	newCPU->ops[0x57][2] = readZpX;
+	newCPU->ops[0x77][2] = readZpX;
+	newCPU->ops[0xd7][2] = readZpX;
+	newCPU->ops[0xf7][2] = readZpX;
 
 	newCPU->ops[0x96][2] = readZpY;
 	newCPU->ops[0xb6][2] = readZpY;
@@ -1369,6 +1518,13 @@ cpu *cpu_create()
 	newCPU->ops[0xde][3] = writeAbsX;
 	newCPU->ops[0xfe][3] = writeAbsX;
 
+	newCPU->ops[0x1f][3] = writeAbsX;
+	newCPU->ops[0x3f][3] = writeAbsX;
+	newCPU->ops[0x5f][3] = writeAbsX;
+	newCPU->ops[0x7f][3] = writeAbsX;
+	newCPU->ops[0xdf][3] = writeAbsX;
+	newCPU->ops[0xff][3] = writeAbsX;
+
 	newCPU->ops[0x19][3] = readAbsY;
 	newCPU->ops[0x39][3] = readAbsY;
 	newCPU->ops[0x59][3] = readAbsY;
@@ -1381,6 +1537,13 @@ cpu *cpu_create()
 	newCPU->ops[0xbf][3] = readAbsY;
 
 	newCPU->ops[0x99][3] = writeAbsY;
+
+	newCPU->ops[0x1b][3] = writeAbsY;
+	newCPU->ops[0x3b][3] = writeAbsY;
+	newCPU->ops[0x5b][3] = writeAbsY;
+	newCPU->ops[0x7b][3] = writeAbsY;
+	newCPU->ops[0xdb][3] = writeAbsY;
+	newCPU->ops[0xfb][3] = writeAbsY;
 
 
 	newCPU->ops[0xa1][5] = ldaMemory;
@@ -1482,6 +1645,54 @@ cpu *cpu_create()
 	newCPU->ops[0x76][5] = rorMemory;
 	newCPU->ops[0x7e][6] = rorMemory;
 
+	newCPU->ops[0x03][7] = slo;
+	newCPU->ops[0x13][7] = slo;
+	newCPU->ops[0x07][4] = slo;
+	newCPU->ops[0x17][5] = slo;
+	newCPU->ops[0x1b][6] = slo;
+	newCPU->ops[0x0f][5] = slo;
+	newCPU->ops[0x1f][6] = slo;
+
+	newCPU->ops[0x23][7] = rla;
+	newCPU->ops[0x33][7] = rla;
+	newCPU->ops[0x27][4] = rla;
+	newCPU->ops[0x37][5] = rla;
+	newCPU->ops[0x3b][6] = rla;
+	newCPU->ops[0x2f][5] = rla;
+	newCPU->ops[0x3f][6] = rla;
+
+	newCPU->ops[0x43][7] = sre;
+	newCPU->ops[0x53][7] = sre;
+	newCPU->ops[0x47][4] = sre;
+	newCPU->ops[0x57][5] = sre;
+	newCPU->ops[0x5b][6] = sre;
+	newCPU->ops[0x4f][5] = sre;
+	newCPU->ops[0x5f][6] = sre;
+
+	newCPU->ops[0x63][7] = rra;
+	newCPU->ops[0x73][7] = rra;
+	newCPU->ops[0x67][4] = rra;
+	newCPU->ops[0x77][5] = rra;
+	newCPU->ops[0x7b][6] = rra;
+	newCPU->ops[0x6f][5] = rra;
+	newCPU->ops[0x7f][6] = rra;
+
+	newCPU->ops[0xc3][7] = dcp;
+	newCPU->ops[0xd3][7] = dcp;
+	newCPU->ops[0xc7][4] = dcp;
+	newCPU->ops[0xd7][5] = dcp;
+	newCPU->ops[0xdb][6] = dcp;
+	newCPU->ops[0xcf][5] = dcp;
+	newCPU->ops[0xdf][6] = dcp;
+
+	newCPU->ops[0xe3][7] = isc;
+	newCPU->ops[0xf3][7] = isc;
+	newCPU->ops[0xe7][4] = isc;
+	newCPU->ops[0xf7][5] = isc;
+	newCPU->ops[0xfb][6] = isc;
+	newCPU->ops[0xef][5] = isc;
+	newCPU->ops[0xff][6] = isc;
+
 
 	newCPU->ops[0x91][5] = sta;
 	newCPU->ops[0x81][5] = sta;	
@@ -1491,9 +1702,15 @@ cpu *cpu_create()
 	newCPU->ops[0x8d][3] = sta;
 	newCPU->ops[0x9d][4] = sta;
 
+	newCPU->ops[0x83][5] = aax;
+	newCPU->ops[0x87][2] = aax;
+	newCPU->ops[0x97][3] = aax;
+	newCPU->ops[0x8f][3] = aax;
+
 	newCPU->ops[0x86][2] = stx;
 	newCPU->ops[0x96][3] = stx;
 	newCPU->ops[0x8e][3] = stx;
+
 
 	newCPU->ops[0x84][2] = sty;
 	newCPU->ops[0x94][3] = sty;
@@ -1620,6 +1837,7 @@ cpu *cpu_create()
 	newCPU->ops[0xa9][1] = ldaImmediate;
 	newCPU->ops[0xc9][1] = cmpImmediate;
 	newCPU->ops[0xe9][1] = sbcImmediate;
+	newCPU->ops[0xeb][1] = sbcImmediate;
 	
 	newCPU->ops[0x0a][1] = aslAccumulator;
 	newCPU->ops[0x2a][1] = rolAccumulator;

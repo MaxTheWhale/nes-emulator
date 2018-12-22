@@ -7,7 +7,7 @@ int main()
     cpu *cpu = cpu_create();
     cpu_loadROM(cpu, "nestest.nes");
     cpu_reset(cpu);
-    for (int x = 0; x < 15810; x++)
+    for (int x = 0; x < 26300; x++)
     {
         //cpu_printState(cpu);
         //printf("\n");
