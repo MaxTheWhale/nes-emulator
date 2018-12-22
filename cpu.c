@@ -68,6 +68,8 @@ struct cpu
 	uint8_t dummy;
     uint8_t flags;
     uint16_t pc;
+	uint16_t address;
+	uint8_t write;
     uint8_t *pcL;
     uint8_t *pcH;
 	uint16_t ad;
@@ -75,17 +77,30 @@ struct cpu
     uint8_t *adH;
 	uint8_t currentOp;
 	uint8_t tick;
+	uint8_t *nmi;
+	uint8_t *irq;
 
 	opPtr ops[256][8];
 
     uint8_t *memory[0x10000];
-	uint8_t *memoryTRUE[0x10000];
 };
 typedef struct cpu cpu;
 
+uint8_t readMemory(cpu *c, uint16_t address)
+{
+	c->address = address;
+	return *c->memory[address];
+}
+void writeMemory(cpu *c, uint16_t address, uint8_t value)
+{
+	c->address = address;
+	c->write = 1;
+	*c->memory[address] = value;
+}
+
 void fetchOp(cpu *c)
 {
-    c->currentOp = *c->memory[c->pc];
+    c->currentOp = readMemory(c, c->pc);
 	c->pc++;
 }
 
@@ -96,62 +111,62 @@ void loadRegister(cpu *c, uint8_t *reg, uint8_t value)
 	*reg = value;
 }
 
-void writeMemory(cpu *c, uint16_t address, uint8_t value)
+void writeValue(cpu *c, uint16_t address, uint8_t value)
 {
 	if (value == 0) setZero(&c->flags); else clearZero(&c->flags);
 	if ((value & 0x80) == 0) clearNegative(&c->flags); else setNegative(&c->flags);
-	*c->memory[address] = value;
+	writeMemory(c, address, value);
 }
 
 void fetchPCHbrk(cpu *c)
 {
-	*c->pcH = *c->memory[0xffff];
+	*c->pcH = readMemory(c, 0xffff);
 	c->tick = 0xff;
 }
 
 void fetchPCLbrk(cpu *c)
 {
-	*c->pcL = *c->memory[0xfffe];
+	*c->pcL = readMemory(c, 0xfffe);
 }
 
 void fetchADL(cpu *c)
 {
 	*c->adH = 0;
-	*c->adL = *c->memory[c->pc];
+	*c->adL = readMemory(c, c->pc);
 	c->pc++;
 }
 
 void fetchADH(cpu *c)
 {
-	*c->adH = *c->memory[c->pc];
-	c->temp = *c->memory[c->ad];
+	*c->adH = readMemory(c, c->pc);
+	c->temp = readMemory(c, c->ad);
 	c->pc++;
 }
 
 void readAddress(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 }
 
 void writeAddress(cpu *c)
 {
-	*c->memory[c->ad] = c->temp;
+	writeMemory(c, c->ad, c->temp);
 }
 void fetchIndirectY(cpu *c)
 {
 	(*c->adL)++;
-	*c->adH = *c->memory[c->ad];
+	*c->adH = readMemory(c, c->ad);
 	*c->adL = c->temp + c->y;
 }
 void fetchIndirectXLow(cpu *c)
 {
 	*c->adL += c->x;
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 }
 void fetchIndirectXHigh(cpu *c)
 {
 	(*c->adL)++;
-	*c->adH = *c->memory[c->ad];
+	*c->adH = readMemory(c, c->ad);
 	*c->adL = c->temp;
 }
 
@@ -159,7 +174,7 @@ void readIndirect(cpu *c)
 {
 	if (*c->adL < c->y)
 	{
-		c->temp = *c->memory[c->ad];
+		c->temp = readMemory(c, c->ad);
 		(*c->adH)++;
 	}
 	else
@@ -169,12 +184,12 @@ void readIndirect(cpu *c)
 }
 void readZpX(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	*c->adL += c->x;
 }
 void readZpY(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	*c->adL += c->y;
 }
 void readAbsX(cpu *c)
@@ -182,7 +197,7 @@ void readAbsX(cpu *c)
 	*c->adL += c->x;
 	if (*c->adL < c->x)
 	{
-		c->temp = *c->memory[c->ad];
+		c->temp = readMemory(c, c->ad);
 		(*c->adH)++;
 	}
 	else
@@ -195,7 +210,7 @@ void readAbsY(cpu *c)
 	*c->adL += c->y;
 	if (*c->adL < c->y)
 	{
-		c->temp = *c->memory[c->ad];
+		c->temp = readMemory(c, c->ad);
 		(*c->adH)++;
 	}
 	else
@@ -206,7 +221,7 @@ void readAbsY(cpu *c)
 void writeAbsX(cpu *c)
 {
 	*c->adL += c->x;
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	if (*c->adL < c->x)
 	{
 		(*c->adH)++;
@@ -215,7 +230,7 @@ void writeAbsX(cpu *c)
 void writeAbsY(cpu *c)
 {
 	*c->adL += c->y;
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	if (*c->adL < c->y)
 	{
 		(*c->adH)++;
@@ -224,44 +239,44 @@ void writeAbsY(cpu *c)
 
 void writeIndirect(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	if (*c->adL < c->y) (*c->adH)++;
 }
 
 void pushBStatus(cpu *c)
 {
-	*c->memory[0x100 + c->stackPointer] = c->flags | 48;
+	writeMemory(c, 0x100 + c->stackPointer, c->flags | 48);
 	c->flags |= 4;
 	c->stackPointer--;
 }
 
 void pushPCL(cpu *c)
 {
-	*c->memory[0x100 + c->stackPointer] = *c->pcL;
+	writeMemory(c, 0x100 + c->stackPointer, *c->pcL);
 	c->stackPointer--;
 }
 void pushPCH(cpu *c)
 {
-	*c->memory[0x100 + c->stackPointer] = *c->pcH;
+	writeMemory(c, 0x100 + c->stackPointer, *c->pcH);
 	c->stackPointer--;
 }
 void pullPCL(cpu *c)
 {
-	*c->pcL = *c->memory[0x100 + c->stackPointer];
+	*c->pcL = readMemory(c, 0x100 + c->stackPointer);
 	c->stackPointer++;
 }
 void pullPCH(cpu *c)
 {
-	*c->pcH = *c->memory[0x100 + c->stackPointer];
+	*c->pcH = readMemory(c, 0x100 + c->stackPointer);
 }
 void rtiPullPCH(cpu *c)
 {
-	*c->pcH = *c->memory[0x100 + c->stackPointer];
+	*c->pcH = readMemory(c, 0x100 + c->stackPointer);
 	c->tick = 0xff;
 }
 void pullFlags(cpu *c)
 {
-	c->flags = *c->memory[0x100 + c->stackPointer];
+	c->flags = readMemory(c, 0x100 + c->stackPointer);
 	c->stackPointer++;
 }
 void incPC(cpu *c)
@@ -272,51 +287,51 @@ void incPC(cpu *c)
 
 void fetchValue(cpu *c)
 {
-	c->temp = *c->memory[c->pc];
+	c->temp = readMemory(c, c->pc);
 	c->pc++;
 }
 void readValue(cpu *c)
 {
-	c->temp = *c->memory[c->pc];
+	c->temp = readMemory(c, c->pc);
 }
 
 void readStack(cpu *c)
 {
-	c->temp = *c->memory[0x100 + c->stackPointer];
+	c->temp = readMemory(c, 0x100 + c->stackPointer);
 }
 
 void jmp(cpu *c)
 {
-	*c->pcH = *c->memory[c->pc];
+	*c->pcH = readMemory(c, c->pc);
 	*c->pcL = *c->adL;
 	c->tick = 0xff;
 }
 void jmpIndirect(cpu *c)
 {
 	(*c->adL)++;
-	*c->pcH = *c->memory[c->ad];
+	*c->pcH = readMemory(c, c->ad);
 	*c->pcL = c->temp;
 	c->tick = 0xff;
 }
 void pla(cpu *c)
 {
-	loadRegister(c, &c->accumulator, *c->memory[0x100 + c->stackPointer]);
+	loadRegister(c, &c->accumulator, readMemory(c, 0x100 + c->stackPointer));
 	c->tick = 0xff;
 }
 void plp(cpu *c)
 {
-	c->flags = *c->memory[0x100 + c->stackPointer];
+	c->flags = readMemory(c, 0x100 + c->stackPointer);
 	c->tick = 0xff;
 }
 void pha(cpu *c)
 {
-	*c->memory[0x100 + c->stackPointer] = c->accumulator;
+	writeMemory(c, 0x100 + c->stackPointer, c->accumulator);
 	c->stackPointer--;
 	c->tick = 0xff;
 }
 void php(cpu *c)
 {
-	*c->memory[0x100 + c->stackPointer] = c->flags | 0x30;
+	writeMemory(c, 0x100 + c->stackPointer, c->flags | 0x30);
 	c->stackPointer--;
 	c->tick = 0xff;
 }
@@ -326,7 +341,7 @@ void ins(cpu *c)
 }
 void nop(cpu *c)
 {
-	c->temp = *c->memory[c->pc];
+	c->temp = readMemory(c, c->pc);
 	c->tick = 0xff;
 }
 
@@ -433,7 +448,7 @@ void ldaImmediate(cpu *c)
 }
 void ldaMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	lda(c);
 }
 void ldx(cpu *c)
@@ -448,7 +463,7 @@ void ldxImmediate(cpu *c)
 }
 void ldxMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	ldx(c);
 }
 void ldy(cpu *c)
@@ -464,12 +479,12 @@ void ldyImmediate(cpu *c)
 }
 void ldyMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	ldy(c);
 }
 void lax(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	loadRegister(c, &c->accumulator, c->temp);
 	loadRegister(c, &c->x, c->temp);
 	c->tick = 0xff;
@@ -486,7 +501,7 @@ void eorImmediate(cpu *c)
 }
 void eorMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	eor(c);
 }
 void and(cpu *c)
@@ -501,7 +516,7 @@ void andImmediate(cpu *c)
 }
 void andMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	and(c);
 }
 void ora(cpu *c)
@@ -516,7 +531,7 @@ void oraImmediate(cpu *c)
 }
 void oraMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	ora(c);
 }
 void adc(cpu *c)
@@ -541,7 +556,7 @@ void adcImmediate(cpu *c)
 }
 void adcMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	adc(c);
 }
 void sbcImmediate(cpu *c)
@@ -552,7 +567,7 @@ void sbcImmediate(cpu *c)
 }
 void sbcMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	c->temp = ~c->temp;
 	adc(c);
 }
@@ -593,7 +608,7 @@ void cmpImmediate(cpu *c)
 }
 void cmpMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	cmp(c);
 }
 void cpxImmediate(cpu *c)
@@ -603,7 +618,7 @@ void cpxImmediate(cpu *c)
 }
 void cpxMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	cpx(c);
 }
 void cpyImmediate(cpu *c)
@@ -613,12 +628,12 @@ void cpyImmediate(cpu *c)
 }
 void cpyMemory(cpu *c)
 {
-	c->temp = *c->memory[c->ad];
+	c->temp = readMemory(c, c->ad);
 	cpy(c);
 }
 void bit(cpu *c)
 {
-	uint8_t val = *c->memory[c->ad];
+	uint8_t val = readMemory(c, c->ad);
 	if (val & c->accumulator) setZero(&c->flags);
 	else clearZero(&c->flags);
 	if (val & 0x80) setNegative(&c->flags);
@@ -629,32 +644,32 @@ void bit(cpu *c)
 }
 void sta(cpu *c)
 {
-	*c->memory[c->ad] = c->accumulator;
+	writeMemory(c, c->ad, c->accumulator);
 	c->tick = 0xff;
 }
 void stx(cpu *c)
 {
-	*c->memory[c->ad] = c->x;
+	writeMemory(c, c->ad, c->x);
 	c->tick = 0xff;
 }
 void aax(cpu *c)
 {
-	*c->memory[c->ad] = c->accumulator & c->x;
+	writeMemory(c, c->ad, c->accumulator & c->x);
 	c->tick = 0xff;
 }
 void sty(cpu *c)
 {
-	*c->memory[c->ad] = c->y;
+	writeMemory(c, c->ad, c->y);
 	c->tick = 0xff;
 }
 void dec(cpu *c)
 {
-	writeMemory(c, c->ad, c->temp - 1);
+	writeValue(c, c->ad, c->temp - 1);
 	c->tick = 0xff;
 }
 void inc(cpu *c)
 {
-	writeMemory(c, c->ad, c->temp + 1);
+	writeValue(c, c->ad, c->temp + 1);
 	c->tick = 0xff;
 }
 void lsrAccumulator(cpu *c)
@@ -695,14 +710,14 @@ void lsrMemory(cpu *c)
 {
 	if (c->temp & 0x1) setCarry(&c->flags);
 	else clearCarry(&c->flags);
-	writeMemory(c, c->ad, c->temp >> 1);
+	writeValue(c, c->ad, c->temp >> 1);
 	c->tick = 0xff;
 }
 void aslMemory(cpu *c)
 {
 	if (c->temp & 0x80) setCarry(&c->flags);
 	else clearCarry(&c->flags);
-	writeMemory(c, c->ad, c->temp << 1);
+	writeValue(c, c->ad, c->temp << 1);
 	c->tick = 0xff;
 }
 void rorMemory(cpu *c)
@@ -712,7 +727,7 @@ void rorMemory(cpu *c)
 	else val &= ~0x80;
 	if (c->temp & 0x1) setCarry(&c->flags);
 	else clearCarry(&c->flags);
-	writeMemory(c, c->ad, val);
+	writeValue(c, c->ad, val);
 	c->tick = 0xff;
 }
 void rolMemory(cpu *c)
@@ -722,7 +737,7 @@ void rolMemory(cpu *c)
 	else val &= ~0x1;
 	if (c->temp & 0x80) setCarry(&c->flags);
 	else clearCarry(&c->flags);
-	writeMemory(c, c->ad, val);
+	writeValue(c, c->ad, val);
 	c->tick = 0xff;
 }
 void dcp(cpu *c)
@@ -1858,8 +1873,8 @@ cpu *cpu_create()
 void cpu_reset(cpu *c)
 {
     setInterrupt(&c->flags);
-    *c->pcL = *c->memory[0xfffc];
-    *c->pcH = *c->memory[0xfffd];
+    *c->pcL = readMemory(c, 0xfffc);
+    *c->pcH = readMemory(c, 0xfffd);
 	/////REMOVELATER
 	c->pc = 0xc000;
 }
@@ -1910,5 +1925,6 @@ void cpu_printState(cpu *c)
 void cpu_executeCycle(cpu *c)
 {
 	c->tick++;
+	c->write = 0;
 	c->ops[c->currentOp][c->tick](c);
 }
