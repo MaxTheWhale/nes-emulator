@@ -1,7 +1,6 @@
 #include "cpu.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 
 const char instrs[256][4] = { "BRK", "ORA", "XXX", "SLO", "DOP", "ORA", "ASL", "SLO",
 							  "PHP", "ORA", "ASL", "AAC", "TOP", "ORA", "ASL", "SLO", 
@@ -57,7 +56,6 @@ uint8_t checkDecimal(uint8_t p)   { return p & 8; }
 uint8_t checkOverflow(uint8_t p)  { return p & 64; }
 uint8_t checkNegative(uint8_t p)  { return p & 128; }
 
-typedef void (*opPtr)(cpu*);  
 struct cpu
 {
     uint8_t accumulator;
@@ -84,7 +82,7 @@ struct cpu
 
     uint8_t *memory[0x10000];
 };
-typedef struct cpu cpu;
+typedef void (*opPtr)(cpu*);
 
 uint8_t readMemory(cpu *c, uint16_t address)
 {
@@ -887,6 +885,27 @@ void branch(cpu *c)
 			fetchOp(c);
 		}
 	}
+}
+
+void cpu_mapMemory(cpu *c, uint16_t address, uint8_t *pointer)
+{
+	c->memory[address] = pointer;
+}
+void cpu_mapNMI(cpu *c, uint8_t *pointer)
+{
+	c->nmi = pointer;
+}
+void cpu_mapIRQ(cpu *c, uint8_t *pointer)
+{
+	c->irq = pointer;
+}
+uint8_t* cpu_getRW(cpu *c)
+{
+	return &(c->write);
+}
+uint16_t* cpu_getAddress(cpu *c)
+{
+	return &(c->address);
 }
 
 FILE *fopenCheck(char *file, char *mode)
@@ -1896,10 +1915,6 @@ void cpu_loadROM(cpu *c, char *rom)
 		}
 	}
 	fclose(f);
-
-	//REMOVELATER
-	*c->memory[2] = 0;
-	*c->memory[3] = 0;
 }
 
 void cpu_printState(cpu *c)
@@ -1919,7 +1934,6 @@ void cpu_printState(cpu *c)
 	{
 		printf("%02hhx, ", *c->memory[0x100 + i]);
 	}
-	printf("     %02hhx %02hhx", *c->memory[2], *c->memory[3]);
 }
 
 void cpu_executeCycle(cpu *c)
