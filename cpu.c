@@ -908,20 +908,10 @@ uint16_t* cpu_getAddress(cpu *c)
 	return &(c->address);
 }
 
-FILE *fopenCheck(char *file, char *mode)
-{
-    FILE *p = fopen(file, mode);
-    if (p != NULL) return p;
-    fprintf(stderr, "Can't open %s: ", file);
-    fflush(stderr);
-    perror("");
-    exit(1);
-}
-
 cpu *cpu_create()
 {
     cpu *newCPU = malloc(sizeof(cpu));
-    uint8_t *ram = malloc(sizeof(uint8_t) * 0x800);
+    
     newCPU->pcL = &newCPU->pc;
     newCPU->pcH = newCPU->pcL + 1;
 	newCPU->adL = &newCPU->ad;
@@ -931,13 +921,6 @@ cpu *cpu_create()
 	for (int i = 0; i < 0x10000; i++)
     {
         newCPU->memory[i] = &(newCPU->dummy);
-    }
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < 0x800; j++)
-        {
-            newCPU->memory[(i*0x800) + j] = ram + j;
-        }
     }
 	for (int i = 0; i < 0x100; i++)
     {
@@ -1896,25 +1879,6 @@ void cpu_reset(cpu *c)
     *c->pcH = readMemory(c, 0xfffd);
 	/////REMOVELATER
 	c->pc = 0xc000;
-}
-
-void cpu_loadROM(cpu *c, char *rom)
-{
-    FILE *f = fopenCheck(rom, "rb");
-    uint8_t header[16];
-
-	fread(header, 16, 1, f);
-	if (header[4] == 1)
-	{
-		uint8_t *prg = malloc(0x4000);
-		fread(prg, 0x1000, 4, f);
-		for (int i = 0; i < 0x4000; i++)
-		{
-			c->memory[0x8000 + i] = prg + i;
-            c->memory[0xc000 + i] = prg + i;
-		}
-	}
-	fclose(f);
 }
 
 void cpu_printState(cpu *c)

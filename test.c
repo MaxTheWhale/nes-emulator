@@ -1,23 +1,24 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "nes.h"
 #include "cpu.h"
 
 int main()
 {
-    cpu *cpu = cpu_create();
-    cpu_loadROM(cpu, "nestest.nes");
-    cpu_reset(cpu);
+    nes *nes = nes_create();
+    nes_loadROM(nes, "nestest.nes");
+    cpu_reset(nes->cpu);
     for (int x = 0; x < 26300; x++)
     {
         //cpu_printState(cpu);
         //printf("\n");
-        cpu_executeCycle(cpu);
+        cpu_executeCycle(nes->cpu);
     }
     while (1)
     {
-        cpu_printState(cpu);
+        cpu_printState(nes->cpu);
         getchar();
-        cpu_executeCycle(cpu);
+        cpu_executeCycle(nes->cpu);
     }
     return 0;
 }

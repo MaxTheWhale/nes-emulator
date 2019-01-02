@@ -22,3 +22,58 @@ struct ppu
     uint8_t *memory[0x4000];
 };
 
+ppu* ppu_create()
+{
+    ppu *newPPU = malloc(sizeof(ppu));
+    return newPPU;
+}
+
+void ppu_mapMemory(ppu *p, uint16_t address, uint8_t *pointer)
+{
+    p->memory[address] = pointer;
+}
+void ppu_mapRW(ppu *p, uint8_t *pointer)
+{
+    p->write = pointer;
+}
+void ppu_mapAddress(ppu *p, uint16_t *pointer)
+{
+    p->address = pointer;
+}
+uint8_t* ppu_getNMI(ppu *p)
+{
+    return &(p->nmi);
+}
+uint8_t* ppu_getPPUCTRL(ppu *p)
+{
+    return &(p->PPUCTRL);
+}
+uint8_t* ppu_getPPUMASK(ppu *p)
+{
+    return &(p->PPUMASK);
+}
+uint8_t* ppu_getPPUSTATUS(ppu *p)
+{
+    return &(p->PPUSTATUS);
+}
+uint8_t* ppu_getOAMADDR(ppu *p)
+{
+    return &(p->OAMADDR);
+}
+uint8_t* ppu_getOAMDATA(ppu *p)
+{
+    return &(p->OAMDATA);
+}
+uint8_t* ppu_getPPUSCROLL(ppu *p)
+{
+    return &(p->PPUSCROLL);
+}
+uint8_t* ppu_getPPUADDR(ppu *p)
+{
+    return &(p->PPUADDR);
+}
+uint8_t* ppu_getPPUDATA(ppu *p)
+{
+    return &(p->PPUDATA);
+}
+
