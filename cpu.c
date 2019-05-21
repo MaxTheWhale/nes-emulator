@@ -35,26 +35,26 @@ const char instrs[256][4] = { "BRK", "ORA", "XXX", "SLO", "DOP", "ORA", "ASL", "
 							  "BEQ", "SBC", "XXX", "ISC", "DOP", "SBC", "INC", "ISC",
 							  "SED", "SBC", "NOP", "ISC", "TOP", "SBC", "INC", "ISC" };
 
-void setCarry(uint8_t *p)       { *p |= 1; }
-void setZero(uint8_t *p)        { *p |= 2; }
-void setInterrupt(uint8_t *p)   { *p |= 4; }
-void setDecimal(uint8_t *p)     { *p |= 8; }
-void setOverflow(uint8_t *p)    { *p |= 64; }
-void setNegative(uint8_t *p)    { *p |= 128; }
+inline void setCarry(uint8_t *p)       { *p |= 1; }
+inline void setZero(uint8_t *p)        { *p |= 2; }
+inline void setInterrupt(uint8_t *p)   { *p |= 4; }
+inline void setDecimal(uint8_t *p)     { *p |= 8; }
+inline void setOverflow(uint8_t *p)    { *p |= 64; }
+inline void setNegative(uint8_t *p)    { *p |= 128; }
 
-void clearCarry(uint8_t *p)     { *p &= 254; }
-void clearZero(uint8_t *p)      { *p &= 253; }
-void clearInterrupt(uint8_t *p) { *p &= 251; }
-void clearDecimal(uint8_t *p)   { *p &= 247; }
-void clearOverflow(uint8_t *p)  { *p &= 191; }
-void clearNegative(uint8_t *p)  { *p &= 127; }
+inline void clearCarry(uint8_t *p)     { *p &= 254; }
+inline void clearZero(uint8_t *p)      { *p &= 253; }
+inline void clearInterrupt(uint8_t *p) { *p &= 251; }
+inline void clearDecimal(uint8_t *p)   { *p &= 247; }
+inline void clearOverflow(uint8_t *p)  { *p &= 191; }
+inline void clearNegative(uint8_t *p)  { *p &= 127; }
 
-uint8_t checkCarry(uint8_t p)     { return p & 1; }
-uint8_t checkZero(uint8_t p)      { return p & 2; }
-uint8_t checkInterrupt(uint8_t p) { return p & 4; }
-uint8_t checkDecimal(uint8_t p)   { return p & 8; }
-uint8_t checkOverflow(uint8_t p)  { return p & 64; }
-uint8_t checkNegative(uint8_t p)  { return p & 128; }
+inline uint8_t checkCarry(uint8_t p)     { return p & 1; }
+inline uint8_t checkZero(uint8_t p)      { return p & 2; }
+inline uint8_t checkInterrupt(uint8_t p) { return p & 4; }
+inline uint8_t checkDecimal(uint8_t p)   { return p & 8; }
+inline uint8_t checkOverflow(uint8_t p)  { return p & 64; }
+inline uint8_t checkNegative(uint8_t p)  { return p & 128; }
 
 struct cpu
 {

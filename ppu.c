@@ -18,6 +18,9 @@ struct ppu
     uint8_t PPUDATA;
     uint8_t OAMDMA;
 
+    uint16_t dot;
+    uint16_t scanline;
+
     uint8_t oam[0x100];
     uint8_t *memory[0x4000];
 };
@@ -75,5 +78,10 @@ uint8_t* ppu_getPPUADDR(ppu *p)
 uint8_t* ppu_getPPUDATA(ppu *p)
 {
     return &(p->PPUDATA);
+}
+
+uint16_t ppu_outputPixel(ppu *p)
+{
+    return (p->dot + p->scanline) & 0x3f;
 }
 

@@ -63,6 +63,32 @@ void nes_loadROM(nes *n, char *rom)
 	fclose(f);
 }
 
+void nes_loadPalette(nes *n, char *palette)
+{
+    FILE *f = fopenCheck(palette, "rb");
+    uint8_t data[64*3];
+
+	fread(data, 64, 3, f);
+
+    for (int i = 0; i < 64; i++)
+    {
+        uint32_t colour = 0;
+        colour |= data[i*3];
+        colour |= (data[i*3+1] << 8);
+        colour |= (data[i*3+2] << 16);
+        n->palette[i] = colour;
+    }
+    fclose(f);
+}
+
+void nes_emulateFrame(nes* n, uint32_t *framebuffer)
+{
+    for (int i = 0; i < (256*240); i++)
+    {
+        framebuffer[i] = n->palette[(i/8)%64];
+    }
+}
+
 nes *nes_create()
 {
     nes *newNES = malloc(sizeof(nes));
