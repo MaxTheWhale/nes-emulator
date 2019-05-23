@@ -5,6 +5,7 @@ struct nes
 {
     cpu *cpu;
     ppu *ppu;
+    uint8_t ram[0x800];
     uint32_t palette[64];
 };
 typedef struct nes nes;

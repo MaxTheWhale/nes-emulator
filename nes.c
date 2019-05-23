@@ -12,27 +12,28 @@ FILE *fopenCheck(char *file, char *mode)
     exit(1);
 }
 
-void mapCPU_PPU(cpu *c, ppu *p)
+void mapCPU_PPU(nes *n)
 {
-    uint8_t *ram = malloc(sizeof(uint8_t) * 0x800);
     for (int i = 0; i < 4; i++)
     {
         for (int j = 0; j < 0x800; j++)
         {
-            cpu_mapMemory(c, (i*0x800) + j, ram + j);
+            cpu_mapMemory(n->cpu, (i*0x800) + j, n->ram + j, false);
+            cpu_mapMemory(n->cpu, (i*0x800) + j, n->ram + j, true);
         }
     }
-    cpu_mapNMI(c, ppu_getNMI(p));
-    cpu_mapMemory(c, 0x2000, ppu_getPPUCTRL(p));
-    cpu_mapMemory(c, 0x2001, ppu_getPPUMASK(p));
-    cpu_mapMemory(c, 0x2002, ppu_getPPUSTATUS(p));
-    cpu_mapMemory(c, 0x2003, ppu_getOAMADDR(p));
-    cpu_mapMemory(c, 0x2004, ppu_getOAMDATA(p));
-    cpu_mapMemory(c, 0x2005, ppu_getPPUSCROLL(p));
-    cpu_mapMemory(c, 0x2006, ppu_getPPUADDR(p));
-    cpu_mapMemory(c, 0x2007, ppu_getPPUDATA(p));
-    ppu_mapRW(p, cpu_getRW(c));
-    ppu_mapAddress(p, cpu_getAddress(c));
+    cpu_mapNMI(n->cpu, ppu_getNMI(n->ppu));
+    cpu_mapMemory(n->cpu, 0x2000, ppu_getPPUCTRL(n->ppu), true);
+    cpu_mapMemory(n->cpu, 0x2001, ppu_getPPUMASK(n->ppu), true);
+    cpu_mapMemory(n->cpu, 0x2002, ppu_getPPUSTATUS(n->ppu), false);
+    cpu_mapMemory(n->cpu, 0x2003, ppu_getOAMADDR(n->ppu), true);
+    cpu_mapMemory(n->cpu, 0x2004, ppu_getOAMDATA(n->ppu), false);
+    cpu_mapMemory(n->cpu, 0x2005, ppu_getPPUSCROLL(n->ppu), true);
+    cpu_mapMemory(n->cpu, 0x2006, ppu_getPPUADDR(n->ppu), true);
+    cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), false);
+    cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), true);
+    ppu_mapRW(n->ppu, cpu_getRW(n->cpu));
+    ppu_mapAddress(n->ppu, cpu_getAddress(n->cpu));
 }
 
 void nes_loadROM(nes *n, char *rom)
@@ -47,8 +48,8 @@ void nes_loadROM(nes *n, char *rom)
 		fread(prg, 0x1000, 4, f);
 		for (int i = 0; i < 0x4000; i++)
 		{
-			cpu_mapMemory(n->cpu, 0x8000 + i, prg + i);
-            cpu_mapMemory(n->cpu, 0xc000 + i, prg + i);
+			cpu_mapMemory(n->cpu, 0x8000 + i, prg + i, false);
+            cpu_mapMemory(n->cpu, 0xc000 + i, prg + i, false);
 		}
 	}
     if (header[5] == 1)
@@ -94,6 +95,6 @@ nes *nes_create()
     nes *newNES = malloc(sizeof(nes));
     newNES->cpu = cpu_create();
     newNES->ppu = ppu_create();
-    mapCPU_PPU(newNES->cpu, newNES->ppu);
+    mapCPU_PPU(newNES);
     return newNES;
 }

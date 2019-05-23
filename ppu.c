@@ -5,7 +5,7 @@
 struct ppu
 {
 	uint16_t *address;
-	uint8_t *write;
+	bool *write;
 	uint8_t nmi;
 
     uint8_t PPUCTRL;
@@ -35,7 +35,7 @@ void ppu_mapMemory(ppu *p, uint16_t address, uint8_t *pointer)
 {
     p->memory[address] = pointer;
 }
-void ppu_mapRW(ppu *p, uint8_t *pointer)
+void ppu_mapRW(ppu *p, bool *pointer)
 {
     p->write = pointer;
 }

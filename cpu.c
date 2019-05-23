@@ -67,7 +67,7 @@ struct cpu
     uint8_t flags;
     uint16_t pc;
 	uint16_t address;
-	uint8_t write;
+	bool write;
     uint8_t *pcL;
     uint8_t *pcH;
 	uint16_t ad;
@@ -75,25 +75,26 @@ struct cpu
     uint8_t *adH;
 	uint8_t currentOp;
 	uint8_t tick;
-	uint8_t *nmi;
-	uint8_t *irq;
+	bool *nmi;
+	bool *irq;
 
 	opPtr ops[256][8];
 
-    uint8_t *memory[0x10000];
+    uint8_t *memory_read[0x10000];
+	uint8_t *memory_write[0x10000];
 };
 typedef void (*opPtr)(cpu*);
 
 uint8_t readMemory(cpu *c, uint16_t address)
 {
 	c->address = address;
-	return *c->memory[address];
+	return *c->memory_read[address];
 }
 void writeMemory(cpu *c, uint16_t address, uint8_t value)
 {
 	c->address = address;
-	c->write = 1;
-	*c->memory[address] = value;
+	c->write = true;
+	*c->memory_write[address] = value;
 }
 
 void fetchOp(cpu *c)
@@ -887,9 +888,16 @@ void branch(cpu *c)
 	}
 }
 
-void cpu_mapMemory(cpu *c, uint16_t address, uint8_t *pointer)
+void cpu_mapMemory(cpu *c, uint16_t address, uint8_t *pointer, bool write)
 {
-	c->memory[address] = pointer;
+	if (write)
+	{
+		c->memory_write[address] = pointer;
+	}
+	else
+	{
+		c->memory_read[address] = pointer;
+	}
 }
 void cpu_mapNMI(cpu *c, uint8_t *pointer)
 {
@@ -899,7 +907,7 @@ void cpu_mapIRQ(cpu *c, uint8_t *pointer)
 {
 	c->irq = pointer;
 }
-uint8_t* cpu_getRW(cpu *c)
+bool* cpu_getRW(cpu *c)
 {
 	return &(c->write);
 }
@@ -920,7 +928,8 @@ cpu *cpu_create()
 	newCPU->stackPointer = 0xfd;
 	for (int i = 0; i < 0x10000; i++)
     {
-        newCPU->memory[i] = &(newCPU->dummy);
+        newCPU->memory_read[i] = &(newCPU->dummy);
+		newCPU->memory_write[i] = &(newCPU->dummy);
     }
 	for (int i = 0; i < 0x100; i++)
     {
@@ -1896,13 +1905,13 @@ void cpu_printState(cpu *c)
 	printf(" Stack: ");
 	for (int i = 0xff; i > c->stackPointer; i--)
 	{
-		printf("%02hhx, ", *c->memory[0x100 + i]);
+		printf("%02hhx, ", *c->memory_read[0x100 + i]);
 	}
 }
 
 void cpu_executeCycle(cpu *c)
 {
 	c->tick++;
-	c->write = 0;
+	c->write = false;
 	c->ops[c->currentOp][c->tick](c);
 }
