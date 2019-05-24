@@ -19,7 +19,7 @@ int main(int n, char **args)
     nes_loadROM(nes, "nestest.nes");
     nes_loadPalette(nes, "pal.pal");
     cpu_reset(nes->cpu);
-    for (int x = 0; x < 26500; x++)
+    for (int x = 0; x < 100000; x++)
     {
         //cpu_printState(cpu);
         //printf("\n");

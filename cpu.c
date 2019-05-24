@@ -924,9 +924,9 @@ cpu *cpu_create()
 {
     cpu *newCPU = malloc(sizeof(cpu));
     
-    newCPU->pcL = &newCPU->pc;
+    newCPU->pcL = (uint8_t*)&newCPU->pc;
     newCPU->pcH = newCPU->pcL + 1;
-	newCPU->adL = &newCPU->ad;
+	newCPU->adL = (uint8_t*)&newCPU->ad;
     newCPU->adH = newCPU->adL + 1;
 	newCPU->tick = 0xff;
 	newCPU->stackPointer = 0xfd;
@@ -938,10 +938,7 @@ cpu *cpu_create()
 	for (int i = 0; i < 0x100; i++)
     {
         newCPU->ops[i][0] = fetchOp;
-		if (instrs[i][0] == 'X' || instrs[i][0] == '?')
-		{
-			newCPU->ops[i][1] = stuck;
-		}
+		newCPU->ops[i][1] = stuck;
     }
 	newCPU->ops[0x00][1] = fetchValue;
 	newCPU->ops[0x10][1] = fetchValue;
@@ -1895,7 +1892,7 @@ void cpu_reset(cpu *c)
     *c->pcL = readMemory(c, 0xfffc);
     *c->pcH = readMemory(c, 0xfffd);
 	/////REMOVELATER
-	c->pc = 0xc000;
+	//c->pc = 0xc000;
 }
 
 void cpu_printState(cpu *c)
@@ -1915,7 +1912,7 @@ void cpu_printState(cpu *c)
 	{
 		printf("%02hhx, ", *c->memory_read[0x100 + i]);
 	}
-	printf("  %02hhx %02hhx", *c->memory_read[2], *c->memory_read[3]);
+	//printf("  %02hhx %02hhx", *c->memory_read[2], *c->memory_read[3]);
 }
 
 void cpu_executeCycle(cpu *c)
