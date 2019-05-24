@@ -138,7 +138,6 @@ void fetchADL(cpu *c)
 void fetchADH(cpu *c)
 {
 	*c->adH = readMemory(c, c->pc);
-	c->temp = readMemory(c, c->ad);
 	c->pc++;
 }
 
@@ -572,31 +571,31 @@ void sbcMemory(cpu *c)
 }
 void cmp(cpu *c)
 {
-	if (c->temp < c->accumulator) setCarry(&c->flags);
+	if (c->temp <= c->accumulator) setCarry(&c->flags);
 	else clearCarry(&c->flags);
 	if (c->temp == c->accumulator) setZero(&c->flags);
 	else clearZero(&c->flags);
-	if (c->accumulator & 0x80) setNegative(&c->flags);
+	if ((c->accumulator - c->temp) & 0x80) setNegative(&c->flags);
 	else clearNegative(&c->flags);
 	c->tick = 0xff;
 }
 void cpx(cpu *c)
 {
-	if (c->temp < c->x) setCarry(&c->flags);
+	if (c->temp <= c->x) setCarry(&c->flags);
 	else clearCarry(&c->flags);
 	if (c->temp == c->x) setZero(&c->flags);
 	else clearZero(&c->flags);
-	if (c->x & 0x80) setNegative(&c->flags);
+	if ((c->x - c->temp) & 0x80) setNegative(&c->flags);
 	else clearNegative(&c->flags);
 	c->tick = 0xff;
 }
 void cpy(cpu *c)
 {
-	if (c->temp < c->y) setCarry(&c->flags);
+	if (c->temp <= c->y) setCarry(&c->flags);
 	else clearCarry(&c->flags);
 	if (c->temp == c->y) setZero(&c->flags);
 	else clearZero(&c->flags);
-	if (c->y & 0x80) setNegative(&c->flags);
+	if ((c->y - c->temp) & 0x80) setNegative(&c->flags);
 	else clearNegative(&c->flags);
 	c->tick = 0xff;
 }
@@ -633,8 +632,8 @@ void cpyMemory(cpu *c)
 void bit(cpu *c)
 {
 	uint8_t val = readMemory(c, c->ad);
-	if (val & c->accumulator) setZero(&c->flags);
-	else clearZero(&c->flags);
+	if (val & c->accumulator) clearZero(&c->flags);
+	else setZero(&c->flags);
 	if (val & 0x80) setNegative(&c->flags);
 	else clearNegative(&c->flags);
 	if (val & 0x40) setOverflow(&c->flags);
@@ -899,11 +898,11 @@ void cpu_mapMemory(cpu *c, uint16_t address, uint8_t *pointer, bool write)
 		c->memory_read[address] = pointer;
 	}
 }
-void cpu_mapNMI(cpu *c, uint8_t *pointer)
+void cpu_mapNMI(cpu *c, bool *pointer)
 {
 	c->nmi = pointer;
 }
-void cpu_mapIRQ(cpu *c, uint8_t *pointer)
+void cpu_mapIRQ(cpu *c, bool *pointer)
 {
 	c->irq = pointer;
 }
@@ -1907,6 +1906,7 @@ void cpu_printState(cpu *c)
 	{
 		printf("%02hhx, ", *c->memory_read[0x100 + i]);
 	}
+	printf("  %02hhx %02hhx", *c->memory_read[2], *c->memory_read[3]);
 }
 
 void cpu_executeCycle(cpu *c)

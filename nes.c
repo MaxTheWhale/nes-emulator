@@ -33,7 +33,9 @@ void mapCPU_PPU(nes *n)
     cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), false);
     cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), true);
     ppu_mapRW(n->ppu, cpu_getRW(n->cpu));
-    ppu_mapAddress(n->ppu, cpu_getAddress(n->cpu));
+    n->address = cpu_getAddress(n->cpu);
+    ppu_mapAddress(n->ppu, n->address);
+    ppu_mapRegAccess(n->ppu, &n->reg_access);
 }
 
 void nes_loadROM(nes *n, char *rom)
@@ -80,6 +82,22 @@ void nes_loadPalette(nes *n, char *palette)
         n->palette[i] = colour;
     }
     fclose(f);
+}
+
+void nes_stepCycle(nes* n)
+{
+    cpu_executeCycle(n->cpu);
+    if ((*n->address & 0xe000) == 0x2000)
+    {
+        n->reg_access = true;
+    }
+    else
+    {
+        n->reg_access = false;
+    }
+    ppu_executeCycle(n->ppu);
+    ppu_executeCycle(n->ppu);
+    ppu_executeCycle(n->ppu);
 }
 
 void nes_emulateFrame(nes* n, uint32_t *framebuffer)

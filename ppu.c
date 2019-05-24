@@ -6,7 +6,9 @@ struct ppu
 {
 	uint16_t *address;
 	bool *write;
-	uint8_t nmi;
+    bool *reg_access;
+	bool nmi;
+    bool odd_frame;
 
     uint8_t PPUCTRL;
     uint8_t PPUMASK;
@@ -28,6 +30,7 @@ struct ppu
 ppu* ppu_create()
 {
     ppu *newPPU = malloc(sizeof(ppu));
+    newPPU->PPUSTATUS = 0;
     return newPPU;
 }
 
@@ -39,11 +42,15 @@ void ppu_mapRW(ppu *p, bool *pointer)
 {
     p->write = pointer;
 }
+void ppu_mapRegAccess(ppu *p, bool *pointer)
+{
+    p->reg_access = pointer;
+}
 void ppu_mapAddress(ppu *p, uint16_t *pointer)
 {
     p->address = pointer;
 }
-uint8_t* ppu_getNMI(ppu *p)
+bool* ppu_getNMI(ppu *p)
 {
     return &(p->nmi);
 }
@@ -80,8 +87,42 @@ uint8_t* ppu_getPPUDATA(ppu *p)
     return &(p->PPUDATA);
 }
 
-uint16_t ppu_outputPixel(ppu *p)
+void ppu_print(ppu *p)
 {
+    printf(" {%d, %d} ", p->dot, p->scanline);
+}
+
+uint16_t ppu_executeCycle(ppu *p)
+{
+    if (*p->reg_access)
+    {
+        int reg = *p->address & 0x7;
+        if (reg == 2)
+        {
+            //p->PPUSTATUS &= 0x7f;
+        }
+    }
+    p->dot++;
+    if (p->dot > 340)
+    {
+        p->dot = 0;
+        p->scanline++;
+        if (p->scanline > 261)
+        {
+            p->scanline = 0;
+        }
+    }
+    if (p->scanline == 241 && p->dot == 1)
+    {
+        printf("\nstart of vblank\n");
+        p->PPUSTATUS |= 0x80;
+    }
+    if (p->scanline == 261 && p->dot == 1)
+    {
+        printf("\nend of vblank\n");
+        p->PPUSTATUS &= 0x1f;
+    }
+    //ppu_print(p);
     return (p->dot + p->scanline) & 0x3f;
 }
 

@@ -19,11 +19,11 @@ int main(int n, char **args)
     nes_loadROM(nes, "nestest.nes");
     nes_loadPalette(nes, "pal.pal");
     cpu_reset(nes->cpu);
-    for (int x = 0; x < 26300; x++)
+    for (int x = 0; x < 26500; x++)
     {
         //cpu_printState(cpu);
         //printf("\n");
-        cpu_executeCycle(nes->cpu);
+        nes_stepCycle(nes);
     }
     nes_emulateFrame(nes, screen->pixels);
 
@@ -36,7 +36,7 @@ int main(int n, char **args)
     {
         cpu_printState(nes->cpu);
         getchar();
-        cpu_executeCycle(nes->cpu);
+        nes_stepCycle(nes);
     }
     return 0;
 }
