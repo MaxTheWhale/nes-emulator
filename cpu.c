@@ -887,6 +887,11 @@ void branch(cpu *c)
 	}
 }
 
+void stuck(cpu *c)
+{
+	c->tick = 0;
+}
+
 void cpu_mapMemory(cpu *c, uint16_t address, uint8_t *pointer, bool write)
 {
 	if (write)
@@ -933,6 +938,10 @@ cpu *cpu_create()
 	for (int i = 0; i < 0x100; i++)
     {
         newCPU->ops[i][0] = fetchOp;
+		if (instrs[i][0] == 'X' || instrs[i][0] == '?')
+		{
+			newCPU->ops[i][1] = stuck;
+		}
     }
 	newCPU->ops[0x00][1] = fetchValue;
 	newCPU->ops[0x10][1] = fetchValue;
