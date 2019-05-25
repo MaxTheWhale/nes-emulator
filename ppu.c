@@ -19,6 +19,11 @@ struct ppu
     bool *reg_access;
     bool reg_access_prev;
     bool vblank_clear;
+    bool background_en;
+    bool sprite_en;
+    bool rendering_en;
+    bool vblank;
+    bool hblank;
 	bool nmi;
     bool odd_frame;
     bool write_latch;
@@ -133,6 +138,12 @@ uint16_t ppu_executeCycle(ppu *p)
             p->address_temp |= ((p->PPUCTRL & 0x3) << 10);
             p->vram_inc = (p->PPUSTATUS & 0x4) ? 32 : 0;
         }
+        if (reg == 1)
+        {
+            p->background_en = (p->PPUMASK & 0x8);
+            p->sprite_en = (p->PPUMASK & 0x10);
+            p->rendering_en = p->sprite_en || p->background_en;
+        }
         if (reg == 2)
         {
             p->vblank_clear = true;
@@ -176,7 +187,68 @@ uint16_t ppu_executeCycle(ppu *p)
             p->address_v &= 0x3fff;
         }
     }
+
+    if (p->rendering_en && !p->vblank)
+    {
+        if (!p->hblank && !(p->dot % 8) && p->dot != 0)
+        {
+            if ((p->address_v & 0x001F) == 31) // if coarse X == 31
+            {
+                p->address_v &= ~0x001F;       // coarse X = 0
+                p->address_v ^= 0x0400;        // switch horizontal nametable
+            }
+            else
+            {
+                p->address_v += 1;             // increment coarse X
+            }
+        }
+        if (p->dot == 256)
+        {
+            if ((p->address_v & 0x7000) != 0x7000) // if fine Y < 7
+            {     
+                p->address_v += 0x1000;            // increment fine Y
+            }
+            else
+            {
+                p->address_v &= ~0x7000;           // fine Y = 0
+                int y = (p->address_v & 0x03E0) >> 5; // let y = coarse Y
+                if (y == 29)
+                {
+                    y = 0;                          // coarse Y = 0
+                    p->address_v ^= 0x0800;         // switch vertical nametable
+                }                 
+                else if (y == 31)
+                {
+                    y = 0;                          // coarse Y = 0, nametable not switched
+                }
+                else
+                {
+                    y += 1;                         // increment coarse Y
+                    p->address_v = (p->address_v & ~0x03E0) | (y << 5);  // put coarse Y back into v
+                }
+            }
+        }
+        if (p->dot == 257)
+        {
+            p->address_v &= 0x7be0;
+            p->address_v |= (p->address_temp & 0x41f);
+        }
+        if (p->dot >= 280 && p->dot <= 304 && p->scanline == 261)
+        {
+            p->address_v &= 0x41f;
+            p->address_v |= (p->address_temp & 0x7be0);
+        }
+    }
+
     p->dot++;
+    if (p->dot == 257)
+    {
+        p->hblank = true;
+    }
+    if (p->dot == 321)
+    {
+        p->hblank = false;
+    }
     if (p->dot > 340)
     {
         p->dot = 0;
@@ -186,6 +258,10 @@ uint16_t ppu_executeCycle(ppu *p)
             p->scanline = 0;
         }
     }
+    if (p->scanline == 240 && p->dot == 0)
+    {
+        p->vblank = true;
+    }
     if (p->scanline == 241 && p->dot == 1)
     {
         printf("\nstart of vblank\n");
@@ -194,6 +270,7 @@ uint16_t ppu_executeCycle(ppu *p)
     if (p->scanline == 261 && p->dot == 1)
     {
         printf("\nend of vblank\n");
+        p->vblank = false;
         p->PPUSTATUS &= 0x1f;
     }
     //ppu_print(p);
