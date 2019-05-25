@@ -8,13 +8,17 @@ struct ppu
     uint16_t address_v;
     uint16_t address_temp;
     uint8_t fine_x;
+    uint8_t vram_inc;
     uint8_t *v_low;
     uint8_t *v_high;
     uint8_t *t_low;
     uint8_t *t_high;
     uint8_t dummy;
 	bool *write;
+    bool write_prev;
     bool *reg_access;
+    bool reg_access_prev;
+    bool vblank_clear;
 	bool nmi;
     bool odd_frame;
     bool write_latch;
@@ -40,6 +44,7 @@ ppu* ppu_create()
 {
     ppu *newPPU = malloc(sizeof(ppu));
     newPPU->PPUSTATUS = 0;
+    newPPU->vram_inc = 1;
     newPPU->v_low = (uint8_t*)&newPPU->address_v;
     newPPU->v_high = newPPU->v_low + 1;
     newPPU->t_low = (uint8_t*)&newPPU->address_temp;
@@ -112,15 +117,28 @@ void ppu_print(ppu *p)
 
 uint16_t ppu_executeCycle(ppu *p)
 {
-    if (*p->reg_access)
+    bool write = (*p->write && !p->write_prev);
+    bool reg_access = (*p->reg_access && !p->reg_access_prev);
+    if (!*p->reg_access && p->reg_access_prev)
+    {
+        p->vblank_clear = false;
+        p->PPUSTATUS &= 0x7f;
+    }
+    if (reg_access)
     {
         int reg = *p->cpu_address & 0x7;
+        if (reg == 0)
+        {
+            p->address_temp &= 0x73ff;
+            p->address_temp |= ((p->PPUCTRL & 0x3) << 10);
+            p->vram_inc = (p->PPUSTATUS & 0x4) ? 32 : 0;
+        }
         if (reg == 2)
         {
-            //p->PPUSTATUS &= 0x7f;
+            p->vblank_clear = true;
             p->write_latch = false;
         }
-        if (reg == 5 && p->write)
+        if (reg == 5 && write)
         {
             if (p->write_latch)
             {
@@ -137,7 +155,7 @@ uint16_t ppu_executeCycle(ppu *p)
                 p->write_latch = true;
             }
         }
-        if (reg == 6 && p->write)
+        if (reg == 6 && write)
         {
             if (p->write_latch)
             {
@@ -151,7 +169,7 @@ uint16_t ppu_executeCycle(ppu *p)
                 p->write_latch = true;
             }
         }
-        if (reg == 7 && p->write)
+        if (reg == 7 && write)
         {
             *p->memory[p->address_v] = p->PPUDATA;
             p->address_v++;
@@ -179,6 +197,8 @@ uint16_t ppu_executeCycle(ppu *p)
         p->PPUSTATUS &= 0x1f;
     }
     //ppu_print(p);
+    p->reg_access_prev = *p->reg_access;
+    p->write_prev = *p->write;
     return (p->dot + p->scanline) & 0x3f;
 }
 
