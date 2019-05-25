@@ -25,6 +25,7 @@ struct ppu
     bool vblank;
     bool hblank;
 	bool nmi;
+    bool nmi_occurred;
     bool odd_frame;
     bool write_latch;
 
@@ -124,6 +125,9 @@ uint16_t ppu_executeCycle(ppu *p)
 {
     bool write = (*p->write && !p->write_prev);
     bool reg_access = (*p->reg_access && !p->reg_access_prev);
+
+    p->nmi = (p->nmi_occurred && (p->PPUCTRL & 0x80));
+
     if (!*p->reg_access && p->reg_access_prev)
     {
         p->vblank_clear = false;
@@ -132,21 +136,22 @@ uint16_t ppu_executeCycle(ppu *p)
     if (reg_access)
     {
         int reg = *p->cpu_address & 0x7;
-        if (reg == 0)
+        if (reg == 0 && write)
         {
             p->address_temp &= 0x73ff;
             p->address_temp |= ((p->PPUCTRL & 0x3) << 10);
             p->vram_inc = (p->PPUSTATUS & 0x4) ? 32 : 0;
         }
-        if (reg == 1)
+        if (reg == 1 && write)
         {
             p->background_en = (p->PPUMASK & 0x8);
             p->sprite_en = (p->PPUMASK & 0x10);
             p->rendering_en = p->sprite_en || p->background_en;
         }
-        if (reg == 2)
+        if (reg == 2 && !write)
         {
             p->vblank_clear = true;
+            p->nmi_occurred = false;
             p->write_latch = false;
         }
         if (reg == 5 && write)
@@ -265,12 +270,14 @@ uint16_t ppu_executeCycle(ppu *p)
     if (p->scanline == 241 && p->dot == 1)
     {
         printf("\nstart of vblank\n");
+        p->nmi_occurred = true;
         p->PPUSTATUS |= 0x80;
     }
     if (p->scanline == 261 && p->dot == 1)
     {
         printf("\nend of vblank\n");
         p->vblank = false;
+        p->nmi_occurred = false;
         p->PPUSTATUS &= 0x1f;
     }
     //ppu_print(p);

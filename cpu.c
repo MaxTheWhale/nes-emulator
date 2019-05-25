@@ -77,6 +77,10 @@ struct cpu
 	uint8_t tick;
 	bool *nmi;
 	bool *irq;
+	bool nmi_prev;
+	bool nmi_pending;
+	bool irq_pending;
+	bool nmi_executing;
 
 	opPtr ops[256][8];
 
@@ -103,6 +107,13 @@ void fetchOp(cpu *c)
 	c->pc++;
 }
 
+void fetchOp_nmi(cpu *c)
+{
+	c->currentOp = readMemory(c, c->pc);
+	c->currentOp = 0;
+	c->nmi_executing = true;
+}
+
 void loadRegister(cpu *c, uint8_t *reg, uint8_t value)
 {
 	if (value == 0) setZero(&c->flags); else clearZero(&c->flags);
@@ -119,13 +130,22 @@ void writeValue(cpu *c, uint16_t address, uint8_t value)
 
 void fetchPCHbrk(cpu *c)
 {
-	*c->pcH = readMemory(c, 0xffff);
+	if (c->nmi_executing)
+	{
+		*c->pcL = readMemory(c, 0xfffb);
+	}
+	else
+		*c->pcH = readMemory(c, 0xffff);
 	c->tick = 0xff;
 }
 
 void fetchPCLbrk(cpu *c)
 {
-	*c->pcL = readMemory(c, 0xfffe);
+	if (c->nmi_executing)
+		*c->pcL = readMemory(c, 0xfffa);
+	else
+		*c->pcL = readMemory(c, 0xfffe);
+	setInterrupt(&c->flags);
 }
 
 void fetchADL(cpu *c)
@@ -243,8 +263,10 @@ void writeIndirect(cpu *c)
 
 void pushBStatus(cpu *c)
 {
-	writeMemory(c, 0x100 + c->stackPointer, c->flags | 48);
-	c->flags |= 4;
+	if (c->nmi_executing)
+		writeMemory(c, 0x100 + c->stackPointer, (c->flags & ~0x10) | 0x20);
+	else
+		writeMemory(c, 0x100 + c->stackPointer, c->flags | 0x30);
 	c->stackPointer--;
 }
 
@@ -252,6 +274,8 @@ void pushPCL(cpu *c)
 {
 	writeMemory(c, 0x100 + c->stackPointer, *c->pcL);
 	c->stackPointer--;
+	if (c->currentOp == 0 && c->nmi_pending)
+		c->nmi_executing = true;
 }
 void pushPCH(cpu *c)
 {
@@ -270,6 +294,11 @@ void pullPCH(cpu *c)
 void rtiPullPCH(cpu *c)
 {
 	*c->pcH = readMemory(c, 0x100 + c->stackPointer);
+	if (c->nmi_executing)
+	{
+		c->nmi_executing = false;
+		c->nmi_pending = false;
+	}
 	c->tick = 0xff;
 }
 void pullFlags(cpu *c)
@@ -930,6 +959,12 @@ cpu *cpu_create()
     newCPU->adH = newCPU->adL + 1;
 	newCPU->tick = 0xff;
 	newCPU->stackPointer = 0xfd;
+	newCPU->nmi_executing = false;
+	newCPU->nmi_pending = false;
+	newCPU->nmi_prev = false;
+	newCPU->irq_pending = false;
+	newCPU->nmi = &newCPU->dummy;
+	newCPU->irq = &newCPU->dummy;
 	for (int i = 0; i < 0x10000; i++)
     {
         newCPU->memory_read[i] = &(newCPU->dummy);
@@ -1919,5 +1954,16 @@ void cpu_executeCycle(cpu *c)
 {
 	c->tick++;
 	c->write = false;
-	c->ops[c->currentOp][c->tick](c);
+	if (c->tick == 0 && c->nmi_pending)
+	{
+		fetchOp_nmi(c);
+	}
+	else
+		c->ops[c->currentOp][c->tick](c);
+	if (!c->nmi_pending)
+	{
+		c->nmi_pending = (*c->nmi && !c->nmi_prev);
+	}
+	c->irq_pending = *c->irq;
+	c->nmi_prev = *c->nmi;
 }
