@@ -18,25 +18,39 @@ int main(int n, char **args)
     nes *nes = nes_create();
     nes_loadROM(nes, "nestest.nes");
     nes_loadPalette(nes, "pal.pal");
+    nes_setFramebuffer(nes, screen->pixels);
     cpu_reset(nes->cpu);
-    for (int x = 0; x < 100000; x++)
+    // for (int x = 0; x < 100000; x++)
+    // {
+    //     //cpu_printState(cpu);
+    //     //printf("\n");
+    //     nes_stepCycle(nes);
+    // }
+    //nes_emulateFrame(nes);
+    bool quit = false;
+    while (!quit)
     {
-        //cpu_printState(cpu);
-        //printf("\n");
-        nes_stepCycle(nes);
+        SDL_Event e;
+        while (SDL_PollEvent(&e))
+        {
+            if (e.type == SDL_KEYDOWN)
+            {
+                if (e.key.keysym.scancode == SDL_SCANCODE_SPACE)
+                {
+                    nes_emulateFrame(nes);
+                }
+                else
+                {
+                    cpu_printState(nes->cpu);
+                    printf("\n");
+                    nes_stepCycle(nes);
+                }
+            }
+            else if (e.type == SDL_QUIT) quit = true;
+        }
+        SDL_UpdateWindowSurface(window);
     }
-    nes_emulateFrame(nes, screen->pixels);
-
-    SDL_UpdateWindowSurface(window);
-
-    SDL_Delay(2000);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    while (1)
-    {
-        cpu_printState(nes->cpu);
-        getchar();
-        nes_stepCycle(nes);
-    }
     return 0;
 }

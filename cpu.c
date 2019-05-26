@@ -132,7 +132,8 @@ void fetchPCHbrk(cpu *c)
 {
 	if (c->nmi_executing)
 	{
-		*c->pcL = readMemory(c, 0xfffb);
+		*c->pcH = readMemory(c, 0xfffb);
+		c->nmi_pending = false;
 	}
 	else
 		*c->pcH = readMemory(c, 0xffff);
@@ -1960,7 +1961,7 @@ void cpu_executeCycle(cpu *c)
 	}
 	else
 		c->ops[c->currentOp][c->tick](c);
-	if (!c->nmi_pending)
+	if (!c->nmi_pending && !c->nmi_executing)
 	{
 		c->nmi_pending = (*c->nmi && !c->nmi_prev);
 	}

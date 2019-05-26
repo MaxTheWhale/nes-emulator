@@ -10,6 +10,8 @@ void ppu_mapRW(ppu *p, bool *pointer);
 void ppu_mapRegAccess(ppu *p, bool *pointer);
 void ppu_mapAddress(ppu *p, uint16_t *pointer);
 bool* ppu_getNMI(ppu *p);
+uint16_t* ppu_getDot(ppu *p);
+uint16_t* ppu_getScanline(ppu *p);
 uint8_t* ppu_getPPUCTRL(ppu *p);
 uint8_t* ppu_getPPUMASK(ppu *p);
 uint8_t* ppu_getPPUSTATUS(ppu *p);

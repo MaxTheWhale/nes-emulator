@@ -34,6 +34,8 @@ void mapCPU_PPU(nes *n)
     cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), true);
     ppu_mapRW(n->ppu, cpu_getRW(n->cpu));
     n->address = cpu_getAddress(n->cpu);
+    n->dot = ppu_getDot(n->ppu);
+    n->scanline = ppu_getScanline(n->ppu);
     ppu_mapAddress(n->ppu, n->address);
     ppu_mapRegAccess(n->ppu, &n->reg_access);
 }
@@ -66,6 +68,11 @@ void nes_loadROM(nes *n, char *rom)
 	fclose(f);
 }
 
+void nes_setFramebuffer(nes *n, uint32_t *framebuffer)
+{
+    n->framebuffer = framebuffer;
+}
+
 void nes_loadPalette(nes *n, char *palette)
 {
     FILE *f = fopenCheck(palette, "rb");
@@ -81,11 +88,19 @@ void nes_loadPalette(nes *n, char *palette)
         colour |= (data[i*3+2] << 16);
         n->palette[i] = colour;
     }
+    for (int i = 1; i < 8; i++)
+    {
+        for (int j = 0; j < 64; j++)
+        {
+            n->palette[i * 64 + j] = n->palette[j];
+        }
+    }
     fclose(f);
 }
 
-void nes_stepCycle(nes* n)
+bool nes_stepCycle(nes* n)
 {
+    bool finished_frame = false;
     cpu_executeCycle(n->cpu);
     if ((*n->address & 0xe000) == 0x2000)
     {
@@ -95,17 +110,22 @@ void nes_stepCycle(nes* n)
     {
         n->reg_access = false;
     }
-    ppu_executeCycle(n->ppu);
-    ppu_executeCycle(n->ppu);
-    ppu_executeCycle(n->ppu);
+    for (int i = 0; i < 3; i++)
+    {
+        uint16_t pixel = ppu_executeCycle(n->ppu);
+        if (pixel < 0x200)
+        {
+            n->framebuffer[*n->scanline * 256 + *n->dot] = n->palette[pixel];
+            if (*n->scanline == 239 && *n->dot == 255)
+                finished_frame = true;
+        }
+    }
+    return finished_frame;
 }
 
-void nes_emulateFrame(nes* n, uint32_t *framebuffer)
+void nes_emulateFrame(nes* n)
 {
-    for (int i = 0; i < (256*240); i++)
-    {
-        framebuffer[i] = n->palette[(i/8)%64];
-    }
+    while (!nes_stepCycle(n));
 }
 
 nes *nes_create()

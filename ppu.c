@@ -55,6 +55,8 @@ ppu* ppu_create()
     newPPU->v_high = newPPU->v_low + 1;
     newPPU->t_low = (uint8_t*)&newPPU->address_temp;
     newPPU->t_high = newPPU->t_low + 1;
+    newPPU->dot = 340;
+    newPPU->scanline = 261;
     for (int i = 0; i < 0x4000; i++)
     {
         newPPU->memory[i] = &newPPU->dummy;
@@ -82,6 +84,14 @@ void ppu_mapAddress(ppu *p, uint16_t *pointer)
 bool* ppu_getNMI(ppu *p)
 {
     return &(p->nmi);
+}
+uint16_t* ppu_getDot(ppu *p)
+{
+    return &(p->dot);
+}
+uint16_t* ppu_getScanline(ppu *p)
+{
+    return &(p->scanline);
 }
 uint8_t* ppu_getPPUCTRL(ppu *p)
 {
@@ -123,6 +133,50 @@ void ppu_print(ppu *p)
 
 uint16_t ppu_executeCycle(ppu *p)
 {
+    p->dot++;
+    if (p->dot > 340)
+    {
+        p->dot = 0;
+        p->scanline++;
+        if (p->scanline > 261)
+        {
+            if (p->odd_frame)
+            {
+                p->dot = 1;
+                p->odd_frame = false;
+            }
+            else
+                p->odd_frame = true;
+            p->scanline = 0;
+        }
+    }
+
+    if (p->dot == 257)
+    {
+        p->hblank = true;
+    }
+    if (p->dot == 321)
+    {
+        p->hblank = false;
+    }
+    if (p->scanline == 240 && p->dot == 0)
+    {
+        p->vblank = true;
+    }
+    if (p->scanline == 241 && p->dot == 1)
+    {
+        printf("\nstart of vblank\n");
+        p->nmi_occurred = true;
+        p->PPUSTATUS |= 0x80;
+    }
+    if (p->scanline == 261 && p->dot == 1)
+    {
+        printf("\nend of vblank\n");
+        p->vblank = false;
+        p->nmi_occurred = false;
+        p->PPUSTATUS &= 0x1f;
+    }
+
     bool write = (*p->write && !p->write_prev);
     bool reg_access = (*p->reg_access && !p->reg_access_prev);
 
@@ -245,51 +299,10 @@ uint16_t ppu_executeCycle(ppu *p)
         }
     }
 
-    p->dot++;
-    if (p->dot == 257)
-    {
-        p->hblank = true;
-    }
-    if (p->dot == 321)
-    {
-        p->hblank = false;
-    }
-    if (p->dot > 340)
-    {
-        p->dot = 0;
-        p->scanline++;
-        if (p->scanline > 261)
-        {
-            if (p->odd_frame)
-            {
-                p->dot = 1;
-                p->odd_frame = false;
-            }
-            else
-                p->odd_frame = true;
-            p->scanline = 0;
-        }
-    }
-    if (p->scanline == 240 && p->dot == 0)
-    {
-        p->vblank = true;
-    }
-    if (p->scanline == 241 && p->dot == 1)
-    {
-        printf("\nstart of vblank\n");
-        p->nmi_occurred = true;
-        p->PPUSTATUS |= 0x80;
-    }
-    if (p->scanline == 261 && p->dot == 1)
-    {
-        printf("\nend of vblank\n");
-        p->vblank = false;
-        p->nmi_occurred = false;
-        p->PPUSTATUS &= 0x1f;
-    }
     //ppu_print(p);
     p->reg_access_prev = *p->reg_access;
     p->write_prev = *p->write;
-    return (p->dot + p->scanline) & 0x3f;
+
+    return (p->dot < 256 && p->scanline < 240) ? (p->odd_frame ? 0x21 : 0x22) : 0xffff;
 }
 
