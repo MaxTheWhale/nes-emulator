@@ -4,6 +4,7 @@
 #include <SDL2/SDL.h>
 #include "nes.h"
 #include "cpu.h"
+#include "ppu.h"
 
 int main(int n, char **args)
 {
@@ -43,6 +44,7 @@ int main(int n, char **args)
                 {
                     cpu_printState(nes->cpu);
                     printf("\n");
+                    ppu_print(nes->ppu);
                     nes_stepCycle(nes);
                 }
             }

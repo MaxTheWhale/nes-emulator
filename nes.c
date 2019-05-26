@@ -65,6 +65,24 @@ void nes_loadROM(nes *n, char *rom)
 			ppu_mapMemory(n->ppu, 0x0000 + i, chr + i);
         }
 	}
+    if (header[6] & 0x1)
+    {
+        for (int i = 0; i < 0x800; i++)
+        {
+            ppu_mapMemory(n->ppu, 0x2000 + i, &n->vram[i]);
+            ppu_mapMemory(n->ppu, 0x2800 + i, &n->vram[i]);
+        }
+    }
+    else
+    {
+        for (int i = 0; i < 0x400; i++)
+        {
+            ppu_mapMemory(n->ppu, 0x2000 + i, &n->vram[i]);
+            ppu_mapMemory(n->ppu, 0x2400 + i, &n->vram[i]);
+            ppu_mapMemory(n->ppu, 0x2800 + i, &n->vram[0x400+i]);
+            ppu_mapMemory(n->ppu, 0x2c00 + i, &n->vram[0x400+i]);
+        }
+    }
 	fclose(f);
 }
 

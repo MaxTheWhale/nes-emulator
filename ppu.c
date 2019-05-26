@@ -14,6 +14,10 @@ struct ppu
     uint8_t *t_low;
     uint8_t *t_high;
     uint8_t dummy;
+    uint8_t current_tile;
+    uint8_t current_attr;
+    uint8_t current_pattern_low;
+    uint8_t current_pattern_high;
 	bool *write;
     bool write_prev;
     bool *reg_access;
@@ -43,6 +47,7 @@ struct ppu
     uint16_t scanline;
 
     uint8_t oam[0x100];
+    uint8_t palette[0x20];
     uint8_t *memory[0x4000];
 };
 
@@ -61,13 +66,18 @@ ppu* ppu_create()
     {
         newPPU->memory[i] = &newPPU->dummy;
     }
+    for (int i = 0; i < 0x100; i++)
+    {
+        newPPU->memory[0x3f00 + i] = &newPPU->palette[i % 0x20];
+    }
     
     return newPPU;
 }
 
 void ppu_mapMemory(ppu *p, uint16_t address, uint8_t *pointer)
 {
-    p->memory[address] = pointer;
+    if (address < 0x3f00)
+        p->memory[address] = pointer;
 }
 void ppu_mapRW(ppu *p, bool *pointer)
 {
@@ -126,9 +136,33 @@ uint8_t* ppu_getPPUDATA(ppu *p)
     return &(p->PPUDATA);
 }
 
+uint16_t getNametableAddr(uint16_t v)
+{
+    return 0x2000 + (v & 0x1ff);
+}
+
+uint16_t getAttributeAddr(uint16_t v)
+{
+    return 0x2000 + ((v & 0xc00) | (v & 0x1c) >> 2 | (v & 0x380) >> 4);
+}
+
+uint16_t getPatternAddr(uint8_t tile, uint16_t v, bool upper, bool right)
+{
+    uint16_t result = 0;
+    if (right) result |= 0x1000;
+    if (upper) result |= 0x8;
+    result |= (tile << 4);
+    result |= ((v & 0x7000) >> 12);
+    return result;
+}
+
+uint16_t calcPixel(ppu *p)
+{
+}
+
 void ppu_print(ppu *p)
 {
-    printf(" {%d, %d} ", p->dot, p->scanline);
+    printf(" {%d, %d} v=%x t=%x\n", p->dot, p->scanline, p->address_v & 0x7fff, p->address_temp & 0x7fff);
 }
 
 uint16_t ppu_executeCycle(ppu *p)
@@ -251,14 +285,30 @@ uint16_t ppu_executeCycle(ppu *p)
     {
         if (!p->hblank && !(p->dot % 8) && p->dot != 0)
         {
-            if ((p->address_v & 0x001F) == 31) // if coarse X == 31
+            if (p->dot % 8 == 0)
             {
-                p->address_v &= ~0x001F;       // coarse X = 0
-                p->address_v ^= 0x0400;        // switch horizontal nametable
+                p->current_pattern_high = *p->memory[getPatternAddr(p->current_tile, p->address_v, true, false)];
+                if ((p->address_v & 0x001F) == 31) // if coarse X == 31
+                {
+                    p->address_v &= ~0x001F;       // coarse X = 0
+                    p->address_v ^= 0x0400;        // switch horizontal nametable
+                }
+                else
+                {
+                    p->address_v += 1;             // increment coarse X
+                }
             }
-            else
+            if (p->dot % 8 == 2)
             {
-                p->address_v += 1;             // increment coarse X
+                p->current_tile = *p->memory[getNametableAddr(p->address_v)];
+            }
+            if (p->dot % 8 == 4)
+            {
+                p->current_attr = *p->memory[getAttributeAddr(p->address_v)];
+            }
+            if (p->dot % 8 == 6)
+            {
+                p->current_pattern_low = *p->memory[getPatternAddr(p->current_tile, p->address_v, false, false)];
             }
         }
         if (p->dot == 256)
@@ -303,6 +353,6 @@ uint16_t ppu_executeCycle(ppu *p)
     p->reg_access_prev = *p->reg_access;
     p->write_prev = *p->write;
 
-    return (p->dot < 256 && p->scanline < 240) ? (p->odd_frame ? 0x21 : 0x22) : 0xffff;
+    return (p->dot < 256 && p->scanline < 240) ? (*p->memory[getPatternAddr(*p->memory[getNametableAddr(p->address_v)], p->address_v, false, false)] & 0x3f) : 0xffff;
 }
 

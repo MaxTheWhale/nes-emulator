@@ -11,6 +11,7 @@ struct nes
     uint32_t *framebuffer;
     bool reg_access;
     uint8_t ram[0x800];
+    uint8_t vram[0x800];
     uint32_t palette[512];
 };
 typedef struct nes nes;

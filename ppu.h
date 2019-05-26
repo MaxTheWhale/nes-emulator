@@ -20,4 +20,5 @@ uint8_t* ppu_getOAMDATA(ppu *p);
 uint8_t* ppu_getPPUSCROLL(ppu *p);
 uint8_t* ppu_getPPUADDR(ppu *p);
 uint8_t* ppu_getPPUDATA(ppu *p);
+void ppu_print(ppu *p);
 uint16_t ppu_executeCycle(ppu *p);

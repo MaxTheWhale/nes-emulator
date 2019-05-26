@@ -964,8 +964,8 @@ cpu *cpu_create()
 	newCPU->nmi_pending = false;
 	newCPU->nmi_prev = false;
 	newCPU->irq_pending = false;
-	newCPU->nmi = &newCPU->dummy;
-	newCPU->irq = &newCPU->dummy;
+	newCPU->nmi = (bool*)&newCPU->dummy;
+	newCPU->irq = (bool*)&newCPU->dummy;
 	for (int i = 0; i < 0x10000; i++)
     {
         newCPU->memory_read[i] = &(newCPU->dummy);
