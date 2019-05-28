@@ -18,6 +18,14 @@ struct ppu
     uint8_t current_attr;
     uint8_t current_pattern_low;
     uint8_t current_pattern_high;
+    uint16_t pattern_shift_low;
+    uint16_t pattern_shift_high;
+    uint16_t attr_shift_low;
+    uint16_t attr_shift_high;
+    uint16_t bg_base;
+    uint16_t sprite_base;
+    bool attr_latch_low;
+    bool attr_latch_high;
 	bool *write;
     bool write_prev;
     bool *reg_access;
@@ -138,7 +146,7 @@ uint8_t* ppu_getPPUDATA(ppu *p)
 
 uint16_t getNametableAddr(uint16_t v)
 {
-    return 0x2000 + (v & 0x1ff);
+    return 0x2000 + (v & 0xfff);
 }
 
 uint16_t getAttributeAddr(uint16_t v)
@@ -153,11 +161,21 @@ uint16_t getPatternAddr(uint8_t tile, uint16_t v, bool upper, bool right)
     if (upper) result |= 0x8;
     result |= (tile << 4);
     result |= ((v & 0x7000) >> 12);
+    //printf("tile: %x, result: %x", tile, result);
     return result;
 }
 
 uint16_t calcPixel(ppu *p)
 {
+    uint8_t pallete_index = 0;
+    if (p->pattern_shift_low & 0x8000) pallete_index += 1;
+    if (p->pattern_shift_high & 0x8000) pallete_index += 2;
+    if (pallete_index != 0)
+    {
+        if (p->attr_shift_low & 0x80) pallete_index += 4;
+        if (p->attr_shift_high & 0x80) pallete_index += 8;
+    }
+    return p->palette[pallete_index];
 }
 
 void ppu_print(ppu *p)
@@ -228,7 +246,9 @@ uint16_t ppu_executeCycle(ppu *p)
         {
             p->address_temp &= 0x73ff;
             p->address_temp |= ((p->PPUCTRL & 0x3) << 10);
-            p->vram_inc = (p->PPUSTATUS & 0x4) ? 32 : 0;
+            p->vram_inc = (p->PPUCTRL & 0x4) ? 32 : 0;
+            p->sprite_base = (p->PPUCTRL & 0x8) ? 0x1000 : 0;
+            p->bg_base = (p->PPUCTRL & 0x10) ? 0x1000 : 0;
         }
         if (reg == 1 && write)
         {
@@ -283,11 +303,17 @@ uint16_t ppu_executeCycle(ppu *p)
 
     if (p->rendering_en && !p->vblank)
     {
-        if (!p->hblank && !(p->dot % 8) && p->dot != 0)
+        if (!p->hblank && p->dot != 0)
         {
+            p->pattern_shift_low <<= 1;
+            p->pattern_shift_high <<= 1;
+            p->attr_shift_low <<= 1;
+            p->attr_shift_high <<= 1;
+            if (p->attr_latch_low) p->attr_shift_low++;
+            if (p->attr_latch_high) p->attr_shift_high++;
             if (p->dot % 8 == 0)
             {
-                p->current_pattern_high = *p->memory[getPatternAddr(p->current_tile, p->address_v, true, false)];
+                p->current_pattern_high = *p->memory[getPatternAddr(p->current_tile, p->address_v, true, p->bg_base)];
                 if ((p->address_v & 0x001F) == 31) // if coarse X == 31
                 {
                     p->address_v &= ~0x001F;       // coarse X = 0
@@ -297,6 +323,19 @@ uint16_t ppu_executeCycle(ppu *p)
                 {
                     p->address_v += 1;             // increment coarse X
                 }
+            }
+            if (p->dot % 8 == 1)
+            {
+                p->pattern_shift_low &= 0xff00;
+                p->pattern_shift_high &= 0xff00;
+                p->pattern_shift_low |= p->current_pattern_low;
+                p->pattern_shift_high |= p->current_pattern_high;
+
+                uint8_t attr = p->current_attr;
+                if (((p->address_v & 0x1f) - 1) & 0x02) attr >>= 2;
+                if (p->address_v & 0x40) attr >>= 4;
+                p->attr_latch_low = (attr & 1) ? true : false;
+                p->attr_latch_high = (attr & 2) ? true : false;
             }
             if (p->dot % 8 == 2)
             {
@@ -308,7 +347,7 @@ uint16_t ppu_executeCycle(ppu *p)
             }
             if (p->dot % 8 == 6)
             {
-                p->current_pattern_low = *p->memory[getPatternAddr(p->current_tile, p->address_v, false, false)];
+                p->current_pattern_low = *p->memory[getPatternAddr(p->current_tile, p->address_v, false, p->bg_base)];
             }
         }
         if (p->dot == 256)
@@ -353,6 +392,6 @@ uint16_t ppu_executeCycle(ppu *p)
     p->reg_access_prev = *p->reg_access;
     p->write_prev = *p->write;
 
-    return (p->dot < 256 && p->scanline < 240) ? (*p->memory[getPatternAddr(*p->memory[getNametableAddr(p->address_v)], p->address_v, false, false)] & 0x3f) : 0xffff;
+    return (p->dot < 256 && p->scanline < 240) ? calcPixel(p) : 0xffff;
 }
 

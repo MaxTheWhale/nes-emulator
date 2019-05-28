@@ -81,6 +81,7 @@ struct cpu
 	bool nmi_pending;
 	bool irq_pending;
 	bool nmi_executing;
+	bool nmi_starting;
 
 	opPtr ops[256][8];
 
@@ -104,14 +105,13 @@ void writeMemory(cpu *c, uint16_t address, uint8_t value)
 void fetchOp(cpu *c)
 {
     c->currentOp = readMemory(c, c->pc);
-	c->pc++;
-}
-
-void fetchOp_nmi(cpu *c)
-{
-	c->currentOp = readMemory(c, c->pc);
-	c->currentOp = 0;
-	c->nmi_executing = true;
+	if (c->nmi_pending)
+	{
+		c->currentOp = 0;
+		c->nmi_starting = true;
+	}
+	else
+		c->pc++;
 }
 
 void loadRegister(cpu *c, uint8_t *reg, uint8_t value)
@@ -130,10 +130,12 @@ void writeValue(cpu *c, uint16_t address, uint8_t value)
 
 void fetchPCHbrk(cpu *c)
 {
-	if (c->nmi_executing)
+	if (c->nmi_starting)
 	{
 		*c->pcH = readMemory(c, 0xfffb);
 		c->nmi_pending = false;
+		c->nmi_starting = false;
+		c->nmi_executing = true;
 	}
 	else
 		*c->pcH = readMemory(c, 0xffff);
@@ -142,7 +144,7 @@ void fetchPCHbrk(cpu *c)
 
 void fetchPCLbrk(cpu *c)
 {
-	if (c->nmi_executing)
+	if (c->nmi_starting)
 		*c->pcL = readMemory(c, 0xfffa);
 	else
 		*c->pcL = readMemory(c, 0xfffe);
@@ -264,7 +266,7 @@ void writeIndirect(cpu *c)
 
 void pushBStatus(cpu *c)
 {
-	if (c->nmi_executing)
+	if (c->nmi_starting)
 		writeMemory(c, 0x100 + c->stackPointer, (c->flags & ~0x10) | 0x20);
 	else
 		writeMemory(c, 0x100 + c->stackPointer, c->flags | 0x30);
@@ -276,7 +278,7 @@ void pushPCL(cpu *c)
 	writeMemory(c, 0x100 + c->stackPointer, *c->pcL);
 	c->stackPointer--;
 	if (c->currentOp == 0 && c->nmi_pending)
-		c->nmi_executing = true;
+		c->nmi_starting = true;
 }
 void pushPCH(cpu *c)
 {
@@ -316,7 +318,7 @@ void incPC(cpu *c)
 void fetchValue(cpu *c)
 {
 	c->temp = readMemory(c, c->pc);
-	c->pc++;
+	if (!c->nmi_starting) c->pc++;
 }
 void readValue(cpu *c)
 {
@@ -964,6 +966,7 @@ cpu *cpu_create()
 	newCPU->nmi_pending = false;
 	newCPU->nmi_prev = false;
 	newCPU->irq_pending = false;
+	newCPU->nmi_starting = false;
 	newCPU->nmi = (bool*)&newCPU->dummy;
 	newCPU->irq = (bool*)&newCPU->dummy;
 	for (int i = 0; i < 0x10000; i++)
@@ -1955,13 +1958,8 @@ void cpu_executeCycle(cpu *c)
 {
 	c->tick++;
 	c->write = false;
-	if (c->tick == 0 && c->nmi_pending)
-	{
-		fetchOp_nmi(c);
-	}
-	else
-		c->ops[c->currentOp][c->tick](c);
-	if (!c->nmi_pending && !c->nmi_executing)
+	c->ops[c->currentOp][c->tick](c);
+	if (!c->nmi_pending && !c->nmi_executing && !c->nmi_starting)
 	{
 		c->nmi_pending = (*c->nmi && !c->nmi_prev);
 	}
