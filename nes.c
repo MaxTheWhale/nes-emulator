@@ -32,7 +32,11 @@ void mapCPU_PPU(nes *n)
     cpu_mapMemory(n->cpu, 0x2006, ppu_getPPUADDR(n->ppu), true);
     cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), false);
     cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), true);
-    ppu_mapRW(n->ppu, cpu_getRW(n->cpu));
+    cpu_mapMemory(n->cpu, 0x4016, &n->pad_latch, true);
+    cpu_mapMemory(n->cpu, 0x4016, &n->pad1_port, false);
+    cpu_mapMemory(n->cpu, 0x4017, &n->pad2_port, false);
+    n->write = cpu_getRW(n->cpu);
+    ppu_mapRW(n->ppu, n->write);
     n->address = cpu_getAddress(n->cpu);
     n->dot = ppu_getDot(n->ppu);
     n->scanline = ppu_getScanline(n->ppu);
@@ -91,6 +95,11 @@ void nes_setFramebuffer(nes *n, uint32_t *framebuffer)
     n->framebuffer = framebuffer;
 }
 
+void nes_updatePadState(nes *n, uint8_t state)
+{
+    n->pad1_state = state;
+}
+
 void nes_loadPalette(nes *n, char *palette)
 {
     FILE *f = fopenCheck(palette, "rb");
@@ -128,6 +137,19 @@ bool nes_stepCycle(nes* n)
     {
         n->reg_access = false;
     }
+    if (*n->address == 0x4016 && *n->write)
+    {
+        if (!(n->pad_latch & 1))
+        {
+            n->pad1_port = 0x40 | (n->pad1_state & 1);
+            n->pad1_count = 0;
+        }
+    }
+    if (*n->address == 0x4016 && !*n->write)
+    {
+        n->pad1_count++;
+        n->pad1_port = 0x40 | ((n->pad1_state >> n->pad1_count) & 1);
+    } 
     for (int i = 0; i < 3; i++)
     {
         uint16_t pixel = ppu_executeCycle(n->ppu);
