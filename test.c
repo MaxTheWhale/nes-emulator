@@ -29,40 +29,51 @@ int main(int n, char **args)
     // }
     //nes_emulateFrame(nes);
     bool quit = false;
+    bool paused = true;
     while (!quit)
     {
         SDL_Event e;
         while (SDL_PollEvent(&e))
         {
-            // if (e.type == SDL_KEYDOWN)
-            // {
-            //     if (e.key.keysym.scancode == SDL_SCANCODE_SPACE)
-            //     {
-            //         nes_emulateFrame(nes);
-            //     }
-            //     else
-            //     {
-            //         cpu_printState(nes->cpu);
-            //         printf("\n");
-            //         ppu_print(nes->ppu);
-            //         nes_stepCycle(nes);
-            //     }
-            // }
+            if (e.type == SDL_KEYDOWN)
+            {
+                if (paused)
+                {
+                    if (e.key.keysym.scancode == SDL_SCANCODE_SPACE)
+                    {
+                        nes_emulateFrame(nes);
+                    }
+                    else
+                    {
+                        cpu_printState(nes->cpu);
+                        printf("\n");
+                        ppu_print(nes->ppu);
+                        nes_stepCycle(nes);
+                    }
+                }
+                if (e.key.keysym.scancode == SDL_SCANCODE_P)
+                {
+                    paused = !paused;
+                }
+            }
             if (e.type == SDL_QUIT) quit = true;
-            const uint8_t *key_state = SDL_GetKeyboardState(NULL);
-            uint8_t pad_state = 0;
-            if (key_state[SDL_SCANCODE_X]) pad_state |= 0x1;
-            if (key_state[SDL_SCANCODE_Z]) pad_state |= 0x2;
-            if (key_state[SDL_SCANCODE_S]) pad_state |= 0x4;
-            if (key_state[SDL_SCANCODE_RETURN]) pad_state |= 0x8;
-            if (key_state[SDL_SCANCODE_UP]) pad_state |= 0x10;
-            if (key_state[SDL_SCANCODE_DOWN]) pad_state |= 0x20;
-            if (key_state[SDL_SCANCODE_LEFT]) pad_state |= 0x40;
-            if (key_state[SDL_SCANCODE_RIGHT]) pad_state |= 0x80;
-            nes_updatePadState(nes, pad_state);
+            // const uint8_t *key_state = SDL_GetKeyboardState(NULL);
+            // uint8_t pad_state = 0;
+            // if (key_state[SDL_SCANCODE_X]) pad_state |= 0x1;
+            // if (key_state[SDL_SCANCODE_Z]) pad_state |= 0x2;
+            // if (key_state[SDL_SCANCODE_S]) pad_state |= 0x4;
+            // if (key_state[SDL_SCANCODE_RETURN]) pad_state |= 0x8;
+            // if (key_state[SDL_SCANCODE_UP]) pad_state |= 0x10;
+            // if (key_state[SDL_SCANCODE_DOWN]) pad_state |= 0x20;
+            // if (key_state[SDL_SCANCODE_LEFT]) pad_state |= 0x40;
+            // if (key_state[SDL_SCANCODE_RIGHT]) pad_state |= 0x80;
+            // nes_updatePadState(nes, pad_state);
         }
-        nes_emulateFrame(nes);
-        SDL_Delay(15);
+        if (!paused)
+        {
+            nes_emulateFrame(nes);
+            SDL_Delay(15);
+        }
         SDL_UpdateWindowSurface(window);
     }
     SDL_DestroyWindow(window);

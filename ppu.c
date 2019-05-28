@@ -151,7 +151,7 @@ uint16_t getNametableAddr(uint16_t v)
 
 uint16_t getAttributeAddr(uint16_t v)
 {
-    return 0x2000 + ((v & 0xc00) | (v & 0x1c) >> 2 | (v & 0x380) >> 4);
+    return 0x23c0 + ((v & 0xc00) | (v & 0x1c) >> 2 | (v & 0x380) >> 4);
 }
 
 uint16_t getPatternAddr(uint8_t tile, uint16_t v, bool upper, bool right)
@@ -168,12 +168,12 @@ uint16_t getPatternAddr(uint8_t tile, uint16_t v, bool upper, bool right)
 uint16_t calcPixel(ppu *p)
 {
     uint8_t pallete_index = 0;
-    if (p->pattern_shift_low & 0x8000) pallete_index += 1;
-    if (p->pattern_shift_high & 0x8000) pallete_index += 2;
+    if (p->pattern_shift_low & 0x8000) pallete_index |= 1;
+    if (p->pattern_shift_high & 0x8000) pallete_index |= 2;
     if (pallete_index != 0)
     {
-        if (p->attr_shift_low & 0x80) pallete_index += 4;
-        if (p->attr_shift_high & 0x80) pallete_index += 8;
+        if (p->attr_shift_low & 0x80) pallete_index |= 4;
+        if (p->attr_shift_high & 0x80) pallete_index |= 8;
     }
     return p->palette[pallete_index];
 }
@@ -332,7 +332,7 @@ uint16_t ppu_executeCycle(ppu *p)
                 p->pattern_shift_high |= p->current_pattern_high;
 
                 uint8_t attr = p->current_attr;
-                if (((p->address_v & 0x1f) - 1) & 0x02) attr >>= 2;
+                if ((p->address_v - 1) & 0x02) attr >>= 2;
                 if (p->address_v & 0x40) attr >>= 4;
                 p->attr_latch_low = (attr & 1) ? true : false;
                 p->attr_latch_high = (attr & 2) ? true : false;

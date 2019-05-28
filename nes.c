@@ -60,6 +60,15 @@ void nes_loadROM(nes *n, char *rom)
             cpu_mapMemory(n->cpu, 0xc000 + i, prg + i, false);
 		}
 	}
+    else if (header[4] == 2)
+	{
+		uint8_t *prg = malloc(0x8000);
+		fread(prg, 0x1000, 8, f);
+		for (int i = 0; i < 0x8000; i++)
+		{
+			cpu_mapMemory(n->cpu, 0x8000 + i, prg + i, false);
+		}
+	}
     if (header[5] == 1)
 	{
 		uint8_t *chr = malloc(0x2000);
@@ -110,9 +119,9 @@ void nes_loadPalette(nes *n, char *palette)
     for (int i = 0; i < 64; i++)
     {
         uint32_t colour = 0;
-        colour |= data[i*3];
+        colour |= (data[i*3] << 16);
         colour |= (data[i*3+1] << 8);
-        colour |= (data[i*3+2] << 16);
+        colour |= data[i*3+2];
         n->palette[i] = colour;
     }
     for (int i = 1; i < 8; i++)
