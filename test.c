@@ -8,6 +8,11 @@
 
 int main(int n, char **args)
 {
+    if (n != 2)
+    {
+        printf("Usage: ./nes rom.nes\n");
+        exit(1);
+    }
     SDL_Surface *screen;
     SDL_Window *window;
 
@@ -17,17 +22,10 @@ int main(int n, char **args)
     screen = SDL_GetWindowSurface(window);
 
     nes *nes = nes_create();
-    nes_loadROM(nes, "nestest.nes");
+    nes_loadROM(nes, args[1]);
     nes_loadPalette(nes, "pal.pal");
     nes_setFramebuffer(nes, screen->pixels);
     cpu_reset(nes->cpu);
-    // for (int x = 0; x < 100000; x++)
-    // {
-    //     //cpu_printState(cpu);
-    //     //printf("\n");
-    //     nes_stepCycle(nes);
-    // }
-    //nes_emulateFrame(nes);
     bool quit = false;
     bool paused = true;
     while (!quit)
@@ -57,17 +55,17 @@ int main(int n, char **args)
                 }
             }
             if (e.type == SDL_QUIT) quit = true;
-            // const uint8_t *key_state = SDL_GetKeyboardState(NULL);
-            // uint8_t pad_state = 0;
-            // if (key_state[SDL_SCANCODE_X]) pad_state |= 0x1;
-            // if (key_state[SDL_SCANCODE_Z]) pad_state |= 0x2;
-            // if (key_state[SDL_SCANCODE_S]) pad_state |= 0x4;
-            // if (key_state[SDL_SCANCODE_RETURN]) pad_state |= 0x8;
-            // if (key_state[SDL_SCANCODE_UP]) pad_state |= 0x10;
-            // if (key_state[SDL_SCANCODE_DOWN]) pad_state |= 0x20;
-            // if (key_state[SDL_SCANCODE_LEFT]) pad_state |= 0x40;
-            // if (key_state[SDL_SCANCODE_RIGHT]) pad_state |= 0x80;
-            // nes_updatePadState(nes, pad_state);
+            const uint8_t *key_state = SDL_GetKeyboardState(NULL);
+            uint8_t pad_state = 0;
+            if (key_state[SDL_SCANCODE_X]) pad_state |= 0x1;
+            if (key_state[SDL_SCANCODE_Z]) pad_state |= 0x2;
+            if (key_state[SDL_SCANCODE_S]) pad_state |= 0x4;
+            if (key_state[SDL_SCANCODE_RETURN]) pad_state |= 0x8;
+            if (key_state[SDL_SCANCODE_UP]) pad_state |= 0x10;
+            if (key_state[SDL_SCANCODE_DOWN]) pad_state |= 0x20;
+            if (key_state[SDL_SCANCODE_LEFT]) pad_state |= 0x40;
+            if (key_state[SDL_SCANCODE_RIGHT]) pad_state |= 0x80;
+            nes_updatePadState(nes, pad_state);
         }
         if (!paused)
         {
