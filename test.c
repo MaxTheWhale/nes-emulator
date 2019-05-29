@@ -17,7 +17,7 @@ int main(int n, char **args)
     screen = SDL_GetWindowSurface(window);
 
     nes *nes = nes_create();
-    nes_loadROM(nes, "dk.nes");
+    nes_loadROM(nes, "nestest.nes");
     nes_loadPalette(nes, "pal.pal");
     nes_setFramebuffer(nes, screen->pixels);
     cpu_reset(nes->cpu);

@@ -246,7 +246,7 @@ uint16_t ppu_executeCycle(ppu *p)
         {
             p->address_temp &= 0x73ff;
             p->address_temp |= ((p->PPUCTRL & 0x3) << 10);
-            p->vram_inc = (p->PPUCTRL & 0x4) ? 32 : 0;
+            p->vram_inc = (p->PPUCTRL & 0x4) ? 32 : 1;
             p->sprite_base = (p->PPUCTRL & 0x8) ? 0x1000 : 0;
             p->bg_base = (p->PPUCTRL & 0x10) ? 0x1000 : 0;
         }
@@ -296,7 +296,7 @@ uint16_t ppu_executeCycle(ppu *p)
         if (reg == 7 && write)
         {
             *p->memory[p->address_v] = p->PPUDATA;
-            p->address_v++;
+            p->address_v += p->vram_inc;
             p->address_v &= 0x3fff;
         }
     }
