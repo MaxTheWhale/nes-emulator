@@ -183,6 +183,84 @@ void ppu_print(ppu *p)
     printf(" {%d, %d} v=%x t=%x\n", p->dot, p->scanline, p->address_v & 0x7fff, p->address_temp & 0x7fff);
 }
 
+void checkRegisters(ppu *p)
+{
+    bool write = (*p->write && !p->write_prev);
+    bool reg_access = (*p->reg_access && !p->reg_access_prev);
+    if (!*p->reg_access && p->reg_access_prev)
+    {
+        p->vblank_clear = false;
+        p->PPUSTATUS &= 0x7f;
+    }
+    if (reg_access)
+    {
+        int reg = *p->cpu_address & 0x7;
+        if (write)
+        {
+            if (reg == 0)
+            {
+                p->address_temp &= 0x73ff;
+                p->address_temp |= ((p->PPUCTRL & 0x3) << 10);
+                p->vram_inc = (p->PPUCTRL & 0x4) ? 32 : 1;
+                p->sprite_base = (p->PPUCTRL & 0x8) ? 0x1000 : 0;
+                p->bg_base = (p->PPUCTRL & 0x10) ? 0x1000 : 0;
+            }
+            if (reg == 1)
+            {
+                p->background_en = (p->PPUMASK & 0x8);
+                p->sprite_en = (p->PPUMASK & 0x10);
+                p->rendering_en = p->sprite_en || p->background_en;
+            }
+            if (reg == 5)
+            {
+                if (p->write_latch)
+                {
+                    p->address_temp &= 0xc1f;
+                    p->address_temp |= (p->PPUSCROLL << 12);
+                    p->address_temp |= ((p->PPUSCROLL & 0xf8) << 2);
+                    p->write_latch = false;
+                }
+                else 
+                {
+                    p->address_temp &= 0x7fe0;
+                    p->address_temp |= (p->PPUSCROLL >> 3);
+                    p->fine_x = p->PPUSCROLL & 0x7;
+                    p->write_latch = true;
+                }
+            }
+            if (reg == 6)
+            {
+                if (p->write_latch)
+                {
+                    *p->t_low = p->PPUADDR;
+                    p->address_v = p->address_temp;
+                    p->write_latch = false;
+                }
+                else 
+                {
+                    *p->t_high = p->PPUADDR & 0x3f;
+                    p->write_latch = true;
+                }
+            }
+            if (reg == 7)
+            {
+                *p->memory[p->address_v] = p->PPUDATA;
+                p->address_v += p->vram_inc;
+                p->address_v &= 0x3fff;
+            }
+        }
+        else
+        {
+            if (reg == 2)
+            {
+                p->vblank_clear = true;
+                p->nmi_occurred = false;
+                p->write_latch = false;
+            }
+        }
+    }
+}
+
 uint16_t ppu_executeCycle(ppu *p)
 {
     p->dot++;
@@ -229,77 +307,9 @@ uint16_t ppu_executeCycle(ppu *p)
         p->PPUSTATUS &= 0x1f;
     }
 
-    bool write = (*p->write && !p->write_prev);
-    bool reg_access = (*p->reg_access && !p->reg_access_prev);
-
     p->nmi = (p->nmi_occurred && (p->PPUCTRL & 0x80));
 
-    if (!*p->reg_access && p->reg_access_prev)
-    {
-        p->vblank_clear = false;
-        p->PPUSTATUS &= 0x7f;
-    }
-    if (reg_access)
-    {
-        int reg = *p->cpu_address & 0x7;
-        if (reg == 0 && write)
-        {
-            p->address_temp &= 0x73ff;
-            p->address_temp |= ((p->PPUCTRL & 0x3) << 10);
-            p->vram_inc = (p->PPUCTRL & 0x4) ? 32 : 1;
-            p->sprite_base = (p->PPUCTRL & 0x8) ? 0x1000 : 0;
-            p->bg_base = (p->PPUCTRL & 0x10) ? 0x1000 : 0;
-        }
-        if (reg == 1 && write)
-        {
-            p->background_en = (p->PPUMASK & 0x8);
-            p->sprite_en = (p->PPUMASK & 0x10);
-            p->rendering_en = p->sprite_en || p->background_en;
-        }
-        if (reg == 2 && !write)
-        {
-            p->vblank_clear = true;
-            p->nmi_occurred = false;
-            p->write_latch = false;
-        }
-        if (reg == 5 && write)
-        {
-            if (p->write_latch)
-            {
-                p->address_temp &= 0xc1f;
-                p->address_temp |= (p->PPUSCROLL << 12);
-                p->address_temp |= ((p->PPUSCROLL & 0xf8) << 2);
-                p->write_latch = false;
-            }
-            else 
-            {
-                p->address_temp &= 0x7fe0;
-                p->address_temp |= (p->PPUSCROLL >> 3);
-                p->fine_x = p->PPUSCROLL & 0x7;
-                p->write_latch = true;
-            }
-        }
-        if (reg == 6 && write)
-        {
-            if (p->write_latch)
-            {
-                *p->t_low = p->PPUADDR;
-                p->address_v = p->address_temp;
-                p->write_latch = false;
-            }
-            else 
-            {
-                *p->t_high = p->PPUADDR & 0x3f;
-                p->write_latch = true;
-            }
-        }
-        if (reg == 7 && write)
-        {
-            *p->memory[p->address_v] = p->PPUDATA;
-            p->address_v += p->vram_inc;
-            p->address_v &= 0x3fff;
-        }
-    }
+    checkRegisters(p);
 
     if (p->rendering_en && !p->vblank)
     {
