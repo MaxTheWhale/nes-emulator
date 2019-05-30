@@ -994,176 +994,27 @@ cpu *cpu_create()
 
 	newCPU->ops[0x20][1] = fetchADL;
 
-	newCPU->ops[0x01][1] = fetchADL;
-	newCPU->ops[0x11][1] = fetchADL;
-	newCPU->ops[0x21][1] = fetchADL;
-	newCPU->ops[0x31][1] = fetchADL;
-	newCPU->ops[0x41][1] = fetchADL;
-	newCPU->ops[0x51][1] = fetchADL;
-	newCPU->ops[0x61][1] = fetchADL;
-	newCPU->ops[0x71][1] = fetchADL;
-	newCPU->ops[0x81][1] = fetchADL;
-	newCPU->ops[0x91][1] = fetchADL;
-	newCPU->ops[0xa1][1] = fetchADL;
-	newCPU->ops[0xb1][1] = fetchADL;
-	newCPU->ops[0xc1][1] = fetchADL;
-	newCPU->ops[0xd1][1] = fetchADL;
-	newCPU->ops[0xe1][1] = fetchADL;
-	newCPU->ops[0xf1][1] = fetchADL;
+	for (int i = 0; i < 0x10; i++)
+	{
+		newCPU->ops[i*0x10 + 0x1][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0x3][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0x4][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0x5][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0x6][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0x7][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0xc][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0xd][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0xe][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0xf][1] = fetchADL;
 
-	newCPU->ops[0x03][1] = fetchADL;
-	newCPU->ops[0x13][1] = fetchADL;
-	newCPU->ops[0x23][1] = fetchADL;
-	newCPU->ops[0x33][1] = fetchADL;
-	newCPU->ops[0x43][1] = fetchADL;
-	newCPU->ops[0x53][1] = fetchADL;
-	newCPU->ops[0x63][1] = fetchADL;
-	newCPU->ops[0x73][1] = fetchADL;
-	newCPU->ops[0x83][1] = fetchADL;
-	newCPU->ops[0x93][1] = fetchADL;
-	newCPU->ops[0xa3][1] = fetchADL;
-	newCPU->ops[0xb3][1] = fetchADL;
-	newCPU->ops[0xc3][1] = fetchADL;
-	newCPU->ops[0xd3][1] = fetchADL;
-	newCPU->ops[0xe3][1] = fetchADL;
-	newCPU->ops[0xf3][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0xc][2] = fetchADH;
+		newCPU->ops[i*0x10 + 0xd][2] = fetchADH;
+		newCPU->ops[i*0x10 + 0xe][2] = fetchADH;
+		newCPU->ops[i*0x10 + 0xf][2] = fetchADH;
 
-
-	newCPU->ops[0x05][1] = fetchADL;
-	newCPU->ops[0x15][1] = fetchADL;
-	newCPU->ops[0x25][1] = fetchADL;
-	newCPU->ops[0x35][1] = fetchADL;
-	newCPU->ops[0x45][1] = fetchADL;
-	newCPU->ops[0x55][1] = fetchADL;
-	newCPU->ops[0x65][1] = fetchADL;
-	newCPU->ops[0x75][1] = fetchADL;
-	newCPU->ops[0x85][1] = fetchADL;
-	newCPU->ops[0x95][1] = fetchADL;
-	newCPU->ops[0xa5][1] = fetchADL;
-	newCPU->ops[0xb5][1] = fetchADL;
-	newCPU->ops[0xc5][1] = fetchADL;
-	newCPU->ops[0xd5][1] = fetchADL;
-	newCPU->ops[0xe5][1] = fetchADL;
-	newCPU->ops[0xf5][1] = fetchADL;
-
-	newCPU->ops[0x06][1] = fetchADL;
-	newCPU->ops[0x16][1] = fetchADL;
-	newCPU->ops[0x26][1] = fetchADL;
-	newCPU->ops[0x36][1] = fetchADL;
-	newCPU->ops[0x46][1] = fetchADL;
-	newCPU->ops[0x56][1] = fetchADL;
-	newCPU->ops[0x66][1] = fetchADL;
-	newCPU->ops[0x76][1] = fetchADL;
-	newCPU->ops[0x86][1] = fetchADL;
-	newCPU->ops[0x96][1] = fetchADL;
-	newCPU->ops[0xa6][1] = fetchADL;
-	newCPU->ops[0xb6][1] = fetchADL;
-	newCPU->ops[0xc6][1] = fetchADL;
-	newCPU->ops[0xd6][1] = fetchADL;
-	newCPU->ops[0xe6][1] = fetchADL;
-	newCPU->ops[0xf6][1] = fetchADL;
-
-	newCPU->ops[0x07][1] = fetchADL;
-	newCPU->ops[0x17][1] = fetchADL;
-	newCPU->ops[0x27][1] = fetchADL;
-	newCPU->ops[0x37][1] = fetchADL;
-	newCPU->ops[0x47][1] = fetchADL;
-	newCPU->ops[0x57][1] = fetchADL;
-	newCPU->ops[0x67][1] = fetchADL;
-	newCPU->ops[0x77][1] = fetchADL;
-	newCPU->ops[0x87][1] = fetchADL;
-	newCPU->ops[0x97][1] = fetchADL;
-	newCPU->ops[0xa7][1] = fetchADL;
-	newCPU->ops[0xb7][1] = fetchADL;
-	newCPU->ops[0xc7][1] = fetchADL;
-	newCPU->ops[0xd7][1] = fetchADL;
-	newCPU->ops[0xe7][1] = fetchADL;
-	newCPU->ops[0xf7][1] = fetchADL;
-
-	newCPU->ops[0x0d][1] = fetchADL;
-	newCPU->ops[0x1d][1] = fetchADL;
-	newCPU->ops[0x2d][1] = fetchADL;
-	newCPU->ops[0x3d][1] = fetchADL;
-	newCPU->ops[0x4d][1] = fetchADL;
-	newCPU->ops[0x5d][1] = fetchADL;
-	newCPU->ops[0x6d][1] = fetchADL;
-	newCPU->ops[0x7d][1] = fetchADL;
-	newCPU->ops[0x8d][1] = fetchADL;
-	newCPU->ops[0x9d][1] = fetchADL;
-	newCPU->ops[0xad][1] = fetchADL;
-	newCPU->ops[0xbd][1] = fetchADL;
-	newCPU->ops[0xcd][1] = fetchADL;
-	newCPU->ops[0xdd][1] = fetchADL;
-	newCPU->ops[0xed][1] = fetchADL;
-	newCPU->ops[0xfd][1] = fetchADL;
-
-	newCPU->ops[0x0e][1] = fetchADL;
-	newCPU->ops[0x1e][1] = fetchADL;
-	newCPU->ops[0x2e][1] = fetchADL;
-	newCPU->ops[0x3e][1] = fetchADL;
-	newCPU->ops[0x4e][1] = fetchADL;
-	newCPU->ops[0x5e][1] = fetchADL;
-	newCPU->ops[0x6e][1] = fetchADL;
-	newCPU->ops[0x7e][1] = fetchADL;
-	newCPU->ops[0x8e][1] = fetchADL;
-	newCPU->ops[0x9e][1] = fetchADL;
-	newCPU->ops[0xae][1] = fetchADL;
-	newCPU->ops[0xbe][1] = fetchADL;
-	newCPU->ops[0xce][1] = fetchADL;
-	newCPU->ops[0xde][1] = fetchADL;
-	newCPU->ops[0xee][1] = fetchADL;
-	newCPU->ops[0xfe][1] = fetchADL;
-
-	newCPU->ops[0x0f][1] = fetchADL;
-	newCPU->ops[0x1f][1] = fetchADL;
-	newCPU->ops[0x2f][1] = fetchADL;
-	newCPU->ops[0x3f][1] = fetchADL;
-	newCPU->ops[0x4f][1] = fetchADL;
-	newCPU->ops[0x5f][1] = fetchADL;
-	newCPU->ops[0x6f][1] = fetchADL;
-	newCPU->ops[0x7f][1] = fetchADL;
-	newCPU->ops[0x8f][1] = fetchADL;
-	newCPU->ops[0x9f][1] = fetchADL;
-	newCPU->ops[0xaf][1] = fetchADL;
-	newCPU->ops[0xbf][1] = fetchADL;
-	newCPU->ops[0xcf][1] = fetchADL;
-	newCPU->ops[0xdf][1] = fetchADL;
-	newCPU->ops[0xef][1] = fetchADL;
-	newCPU->ops[0xff][1] = fetchADL;
-
-	newCPU->ops[0x0c][1] = fetchADL;
-	newCPU->ops[0x1c][1] = fetchADL;
-	newCPU->ops[0x2c][1] = fetchADL;
-	newCPU->ops[0x3c][1] = fetchADL;
-	newCPU->ops[0x4c][1] = fetchADL;
-	newCPU->ops[0x5c][1] = fetchADL;
-	newCPU->ops[0x6c][1] = fetchADL;
-	newCPU->ops[0x7c][1] = fetchADL;
-	newCPU->ops[0x8c][1] = fetchADL;
-	newCPU->ops[0x9c][1] = fetchADL;
-	newCPU->ops[0xac][1] = fetchADL;
-	newCPU->ops[0xbc][1] = fetchADL;
-	newCPU->ops[0xcc][1] = fetchADL;
-	newCPU->ops[0xdc][1] = fetchADL;
-	newCPU->ops[0xec][1] = fetchADL;
-	newCPU->ops[0xfc][1] = fetchADL;
-	
-	newCPU->ops[0x04][1] = fetchADL;
-	newCPU->ops[0x14][1] = fetchADL;
-	newCPU->ops[0x24][1] = fetchADL;
-	newCPU->ops[0x34][1] = fetchADL;
-	newCPU->ops[0x44][1] = fetchADL;
-	newCPU->ops[0x54][1] = fetchADL;
-	newCPU->ops[0x64][1] = fetchADL;
-	newCPU->ops[0x74][1] = fetchADL;
-	newCPU->ops[0x84][1] = fetchADL;
-	newCPU->ops[0x94][1] = fetchADL;
-	newCPU->ops[0xa4][1] = fetchADL;
-	newCPU->ops[0xb4][1] = fetchADL;
-	newCPU->ops[0xc4][1] = fetchADL;
-	newCPU->ops[0xd4][1] = fetchADL;
-	newCPU->ops[0xe4][1] = fetchADL;
-	newCPU->ops[0xf4][1] = fetchADL;
+		newCPU->ops[i*0x10 + 0x1][2] = readAddress;
+		newCPU->ops[i*0x10 + 0x3][2] = readAddress;
+	}
 
 	newCPU->ops[0x19][1] = fetchADL;
 	newCPU->ops[0x39][1] = fetchADL;
@@ -1180,74 +1031,6 @@ cpu *cpu_create()
 	newCPU->ops[0x7b][1] = fetchADL;
 	newCPU->ops[0xdb][1] = fetchADL;
 	newCPU->ops[0xfb][1] = fetchADL;
-	
-
-	newCPU->ops[0x0d][2] = fetchADH;
-	newCPU->ops[0x1d][2] = fetchADH;
-	newCPU->ops[0x2d][2] = fetchADH;
-	newCPU->ops[0x3d][2] = fetchADH;
-	newCPU->ops[0x4d][2] = fetchADH;
-	newCPU->ops[0x5d][2] = fetchADH;
-	newCPU->ops[0x6d][2] = fetchADH;
-	newCPU->ops[0x7d][2] = fetchADH;
-	newCPU->ops[0x8d][2] = fetchADH;
-	newCPU->ops[0x9d][2] = fetchADH;
-	newCPU->ops[0xad][2] = fetchADH;
-	newCPU->ops[0xbd][2] = fetchADH;
-	newCPU->ops[0xcd][2] = fetchADH;
-	newCPU->ops[0xdd][2] = fetchADH;
-	newCPU->ops[0xed][2] = fetchADH;
-	newCPU->ops[0xfd][2] = fetchADH;
-
-	newCPU->ops[0x0e][2] = fetchADH;
-	newCPU->ops[0x1e][2] = fetchADH;
-	newCPU->ops[0x2e][2] = fetchADH;
-	newCPU->ops[0x3e][2] = fetchADH;
-	newCPU->ops[0x4e][2] = fetchADH;
-	newCPU->ops[0x5e][2] = fetchADH;
-	newCPU->ops[0x6e][2] = fetchADH;
-	newCPU->ops[0x7e][2] = fetchADH;
-	newCPU->ops[0x8e][2] = fetchADH;
-	newCPU->ops[0x9e][2] = fetchADH;
-	newCPU->ops[0xae][2] = fetchADH;
-	newCPU->ops[0xbe][2] = fetchADH;
-	newCPU->ops[0xce][2] = fetchADH;
-	newCPU->ops[0xde][2] = fetchADH;
-	newCPU->ops[0xee][2] = fetchADH;
-	newCPU->ops[0xfe][2] = fetchADH;
-
-	newCPU->ops[0x0f][2] = fetchADH;
-	newCPU->ops[0x1f][2] = fetchADH;
-	newCPU->ops[0x2f][2] = fetchADH;
-	newCPU->ops[0x3f][2] = fetchADH;
-	newCPU->ops[0x4f][2] = fetchADH;
-	newCPU->ops[0x5f][2] = fetchADH;
-	newCPU->ops[0x6f][2] = fetchADH;
-	newCPU->ops[0x7f][2] = fetchADH;
-	newCPU->ops[0x8f][2] = fetchADH;
-	newCPU->ops[0x9f][2] = fetchADH;
-	newCPU->ops[0xaf][2] = fetchADH;
-	newCPU->ops[0xbf][2] = fetchADH;
-	newCPU->ops[0xcf][2] = fetchADH;
-	newCPU->ops[0xdf][2] = fetchADH;
-	newCPU->ops[0xef][2] = fetchADH;
-	newCPU->ops[0xff][2] = fetchADH;
-
-	newCPU->ops[0x0c][2] = fetchADH;
-	newCPU->ops[0x1c][2] = fetchADH;
-	newCPU->ops[0x2c][2] = fetchADH;
-	newCPU->ops[0x3c][2] = fetchADH;
-	newCPU->ops[0x5c][2] = fetchADH;
-	newCPU->ops[0x6c][2] = fetchADH;
-	newCPU->ops[0x7c][2] = fetchADH;
-	newCPU->ops[0x8c][2] = fetchADH;
-	newCPU->ops[0x0c][2] = fetchADH;
-	newCPU->ops[0xac][2] = fetchADH;
-	newCPU->ops[0xbc][2] = fetchADH;
-	newCPU->ops[0xcc][2] = fetchADH;
-	newCPU->ops[0xdc][2] = fetchADH;
-	newCPU->ops[0xec][2] = fetchADH;
-	newCPU->ops[0xfc][2] = fetchADH;
 
 	newCPU->ops[0x19][2] = fetchADH;
 	newCPU->ops[0x39][2] = fetchADH;
@@ -1264,41 +1047,6 @@ cpu *cpu_create()
 	newCPU->ops[0x7b][2] = fetchADH;
 	newCPU->ops[0xdb][2] = fetchADH;
 	newCPU->ops[0xfb][2] = fetchADH;
-
-
-	newCPU->ops[0x01][2] = readAddress;
-	newCPU->ops[0x11][2] = readAddress;
-	newCPU->ops[0x21][2] = readAddress;
-	newCPU->ops[0x31][2] = readAddress;
-	newCPU->ops[0x41][2] = readAddress;
-	newCPU->ops[0x51][2] = readAddress;
-	newCPU->ops[0x61][2] = readAddress;
-	newCPU->ops[0x71][2] = readAddress;
-	newCPU->ops[0x81][2] = readAddress;
-	newCPU->ops[0x91][2] = readAddress;
-	newCPU->ops[0xa1][2] = readAddress;
-	newCPU->ops[0xb1][2] = readAddress;
-	newCPU->ops[0xc1][2] = readAddress;
-	newCPU->ops[0xd1][2] = readAddress;
-	newCPU->ops[0xe1][2] = readAddress;
-	newCPU->ops[0xf1][2] = readAddress;
-
-	newCPU->ops[0x03][2] = readAddress;
-	newCPU->ops[0x13][2] = readAddress;
-	newCPU->ops[0x23][2] = readAddress;
-	newCPU->ops[0x33][2] = readAddress;
-	newCPU->ops[0x43][2] = readAddress;
-	newCPU->ops[0x53][2] = readAddress;
-	newCPU->ops[0x63][2] = readAddress;
-	newCPU->ops[0x73][2] = readAddress;
-	newCPU->ops[0x83][2] = readAddress;
-	newCPU->ops[0x93][2] = readAddress;
-	newCPU->ops[0xa3][2] = readAddress;
-	newCPU->ops[0xb3][2] = readAddress;
-	newCPU->ops[0xc3][2] = readAddress;
-	newCPU->ops[0xd3][2] = readAddress;
-	newCPU->ops[0xe3][2] = readAddress;
-	newCPU->ops[0xf3][2] = readAddress;
 
 	newCPU->ops[0x03][5] = readAddress;
 	newCPU->ops[0x13][5] = readAddress;
@@ -1930,8 +1678,6 @@ void cpu_reset(cpu *c)
     setInterrupt(&c->flags);
     *c->pcL = readMemory(c, 0xfffc);
     *c->pcH = readMemory(c, 0xfffd);
-	/////REMOVELATER
-	//c->pc = 0xc000;
 }
 
 void cpu_printState(cpu *c)
@@ -1951,7 +1697,6 @@ void cpu_printState(cpu *c)
 	{
 		printf("%02hhx, ", *c->memory_read[0x100 + i]);
 	}
-	//printf("  %02hhx %02hhx", *c->memory_read[2], *c->memory_read[3]);
 }
 
 void cpu_executeCycle(cpu *c)
