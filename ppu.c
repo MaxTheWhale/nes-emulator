@@ -2,6 +2,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+enum { PPUCTRL, PPUMASK, PPUSTATUS, OAMADDR, OAMDATA, PPUSCROLL, PPUADDR, PPUDATA };
+enum { FINE_Y      = 0x7000, 
+       NAMETABLE   = 0x0c00,
+       NAMETABLE_Y = 0x0800,
+       NAMETABLE_X = 0x0400,
+       COARSE_Y    = 0x03e0,
+       COARSE_X    = 0x001f,
+       ATTR_Y      = 0x0380,
+       ATTR_X      = 0x001c };
+
 struct ppu
 {
 	uint16_t *cpu_address;
@@ -9,10 +19,6 @@ struct ppu
     uint16_t address_temp;
     uint8_t fine_x;
     uint8_t vram_inc;
-    uint8_t *v_low;
-    uint8_t *v_high;
-    uint8_t *t_low;
-    uint8_t *t_high;
     uint8_t dummy;
     uint8_t current_tile;
     uint8_t current_attr;
@@ -49,7 +55,6 @@ struct ppu
     uint8_t PPUSCROLL;
     uint8_t PPUADDR;
     uint8_t PPUDATA;
-    uint8_t OAMDMA;
 
     uint16_t dot;
     uint16_t scanline;
@@ -64,10 +69,6 @@ ppu* ppu_create()
     ppu *newPPU = malloc(sizeof(ppu));
     newPPU->PPUSTATUS = 0;
     newPPU->vram_inc = 1;
-    newPPU->v_low = (uint8_t*)&newPPU->address_v;
-    newPPU->v_high = newPPU->v_low + 1;
-    newPPU->t_low = (uint8_t*)&newPPU->address_temp;
-    newPPU->t_high = newPPU->t_low + 1;
     newPPU->dot = 340;
     newPPU->scanline = 261;
     for (int i = 0; i < 0x4000; i++)
@@ -146,12 +147,12 @@ uint8_t* ppu_getPPUDATA(ppu *p)
 
 uint16_t getNametableAddr(uint16_t v)
 {
-    return 0x2000 + (v & 0xfff);
+    return 0x2000 + (v & (NAMETABLE | COARSE_Y | COARSE_X));
 }
 
 uint16_t getAttributeAddr(uint16_t v)
 {
-    return 0x23c0 + ((v & 0xc00) | (v & 0x1c) >> 2 | (v & 0x380) >> 4);
+    return 0x23c0 + ((v & NAMETABLE) | (v & ATTR_X) >> 2 | (v & ATTR_Y) >> 4);
 }
 
 uint16_t getPatternAddr(uint8_t tile, uint16_t v, bool upper, bool right)
@@ -160,7 +161,7 @@ uint16_t getPatternAddr(uint8_t tile, uint16_t v, bool upper, bool right)
     if (right) result |= 0x1000;
     if (upper) result |= 0x8;
     result |= (tile << 4);
-    result |= ((v & 0x7000) >> 12);
+    result |= ((v & FINE_Y) >> 12);
     //printf("tile: %x, result: %x", tile, result);
     return result;
 }
@@ -197,61 +198,65 @@ void checkRegisters(ppu *p)
         int reg = *p->cpu_address & 0x7;
         if (write)
         {
-            if (reg == 0)
+            switch (reg)
             {
-                p->address_temp &= 0x73ff;
+            case PPUCTRL:
+                p->address_temp &= ~NAMETABLE;
                 p->address_temp |= ((p->PPUCTRL & 0x3) << 10);
                 p->vram_inc = (p->PPUCTRL & 0x4) ? 32 : 1;
                 p->sprite_base = (p->PPUCTRL & 0x8) ? 0x1000 : 0;
                 p->bg_base = (p->PPUCTRL & 0x10) ? 0x1000 : 0;
-            }
-            if (reg == 1)
-            {
+                break;
+
+            case PPUMASK:
                 p->background_en = (p->PPUMASK & 0x8);
                 p->sprite_en = (p->PPUMASK & 0x10);
                 p->rendering_en = p->sprite_en || p->background_en;
-            }
-            if (reg == 5)
-            {
+                break;
+
+            case PPUSCROLL:
                 if (p->write_latch)
                 {
-                    p->address_temp &= 0xc1f;
+                    p->address_temp &= ~(FINE_Y | COARSE_Y);
                     p->address_temp |= (p->PPUSCROLL << 12);
                     p->address_temp |= ((p->PPUSCROLL & 0xf8) << 2);
                     p->write_latch = false;
                 }
                 else 
                 {
-                    p->address_temp &= 0x7fe0;
+                    p->address_temp &= ~COARSE_X;
                     p->address_temp |= (p->PPUSCROLL >> 3);
                     p->fine_x = p->PPUSCROLL & 0x7;
                     p->write_latch = true;
                 }
-            }
-            if (reg == 6)
-            {
+                break;
+
+            case PPUADDR:
                 if (p->write_latch)
                 {
-                    *p->t_low = p->PPUADDR;
+                    p->address_temp &= 0xff00;
+                    p->address_temp |= p->PPUADDR;
                     p->address_v = p->address_temp;
                     p->write_latch = false;
                 }
                 else 
                 {
-                    *p->t_high = p->PPUADDR & 0x3f;
+                    p->address_temp &= 0x00ff;
+                    p->address_temp |= (p->PPUADDR & 0x3f) << 8;
                     p->write_latch = true;
                 }
-            }
-            if (reg == 7)
-            {
+                break;
+
+            case PPUDATA:
                 *p->memory[p->address_v] = p->PPUDATA;
                 p->address_v += p->vram_inc;
                 p->address_v &= 0x3fff;
+                break;
             }
         }
         else
         {
-            if (reg == 2)
+            if (reg == PPUDATA)
             {
                 p->vblank_clear = true;
                 p->nmi_occurred = false;
@@ -295,13 +300,11 @@ uint16_t ppu_executeCycle(ppu *p)
     }
     if (p->scanline == 241 && p->dot == 1)
     {
-        printf("\nstart of vblank\n");
         p->nmi_occurred = true;
         p->PPUSTATUS |= 0x80;
     }
     if (p->scanline == 261 && p->dot == 1)
     {
-        printf("\nend of vblank\n");
         p->vblank = false;
         p->nmi_occurred = false;
         p->PPUSTATUS &= 0x1f;
@@ -324,14 +327,14 @@ uint16_t ppu_executeCycle(ppu *p)
             if (p->dot % 8 == 0)
             {
                 p->current_pattern_high = *p->memory[getPatternAddr(p->current_tile, p->address_v, true, p->bg_base)];
-                if ((p->address_v & 0x001F) == 31) // if coarse X == 31
+                if ((p->address_v & COARSE_X) == 31)
                 {
-                    p->address_v &= ~0x001F;       // coarse X = 0
-                    p->address_v ^= 0x0400;        // switch horizontal nametable
+                    p->address_v &= ~COARSE_X;
+                    p->address_v ^= NAMETABLE_X;
                 }
                 else
                 {
-                    p->address_v += 1;             // increment coarse X
+                    p->address_v += 1;
                 }
             }
             if (p->dot % 8 == 1)
@@ -362,39 +365,39 @@ uint16_t ppu_executeCycle(ppu *p)
         }
         if (p->dot == 256)
         {
-            if ((p->address_v & 0x7000) != 0x7000) // if fine Y < 7
+            if ((p->address_v & FINE_Y) < 0x7000)
             {     
-                p->address_v += 0x1000;            // increment fine Y
+                p->address_v += 0x1000;
             }
             else
             {
-                p->address_v &= ~0x7000;           // fine Y = 0
-                int y = (p->address_v & 0x03E0) >> 5; // let y = coarse Y
+                p->address_v &= ~FINE_Y;
+                int y = (p->address_v & COARSE_Y) >> 5;
                 if (y == 29)
                 {
-                    y = 0;                          // coarse Y = 0
-                    p->address_v ^= 0x0800;         // switch vertical nametable
+                    y = 0;
+                    p->address_v ^= NAMETABLE_Y;
                 }                 
                 else if (y == 31)
                 {
-                    y = 0;                          // coarse Y = 0, nametable not switched
+                    y = 0;
                 }
                 else
                 {
-                    y += 1;                         // increment coarse Y
-                    p->address_v = (p->address_v & ~0x03E0) | (y << 5);  // put coarse Y back into v
+                    y += 1;
+                    p->address_v = (p->address_v & ~COARSE_Y) | (y << 5);
                 }
             }
         }
         if (p->dot == 257)
         {
-            p->address_v &= 0x7be0;
-            p->address_v |= (p->address_temp & 0x41f);
+            p->address_v &= ~(NAMETABLE_X | COARSE_X);
+            p->address_v |= (p->address_temp & (NAMETABLE_X | COARSE_X));
         }
         if (p->dot >= 280 && p->dot <= 304 && p->scanline == 261)
         {
-            p->address_v &= 0x41f;
-            p->address_v |= (p->address_temp & 0x7be0);
+            p->address_v &= ~(FINE_Y | NAMETABLE_Y | COARSE_Y);
+            p->address_v |= (p->address_temp & (FINE_Y | NAMETABLE_Y | COARSE_Y));
         }
     }
 
