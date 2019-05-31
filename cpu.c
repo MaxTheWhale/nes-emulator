@@ -979,20 +979,6 @@ cpu *cpu_create()
         newCPU->ops[i][0] = fetchOp;
 		newCPU->ops[i][1] = stuck;
     }
-	newCPU->ops[0x00][1] = fetchValue;
-	newCPU->ops[0x10][1] = fetchValue;
-	newCPU->ops[0x30][1] = fetchValue;
-	newCPU->ops[0x40][1] = fetchValue;
-	newCPU->ops[0x50][1] = fetchValue;
-	newCPU->ops[0x60][1] = fetchValue;
-	newCPU->ops[0x70][1] = fetchValue;
-	newCPU->ops[0x90][1] = fetchValue;
-	newCPU->ops[0xb0][1] = fetchValue;
-	newCPU->ops[0xd0][1] = fetchValue;
-	newCPU->ops[0xf0][1] = fetchValue;
-
-
-	newCPU->ops[0x20][1] = fetchADL;
 
 	for (int i = 0; i < 0x10; i++)
 	{
@@ -1025,7 +1011,7 @@ cpu *cpu_create()
 			newCPU->ops[i*0x10 + 0x3][3] = fetchIndirectY;
 			newCPU->ops[i*0x10][3] = branch;
 
-			if (i & 0xc != 0x8)
+			if ((i & 0xc) != 0x8)
 			{
 				newCPU->ops[i*0x10 + 0xb][1] = fetchADL;
 				newCPU->ops[i*0x10 + 0xb][2] = fetchADH;
@@ -1034,11 +1020,13 @@ cpu *cpu_create()
 				newCPU->ops[i*0x10 + 0xf][4] = readAddress;
 				newCPU->ops[i*0x10 + 0xb][4] = readAddress;
 				newCPU->ops[i*0x10 + 0x7][3] = readAddress;
+				newCPU->ops[i*0x10 + 0x3][5] = readAddress;
 				newCPU->ops[i*0x10 + 0x6][4] = writeAddress;
 				newCPU->ops[i*0x10 + 0x7][4] = writeAddress;
 				newCPU->ops[i*0x10 + 0xb][5] = writeAddress;
 				newCPU->ops[i*0x10 + 0xe][5] = writeAddress;
 				newCPU->ops[i*0x10 + 0xf][5] = writeAddress;
+				newCPU->ops[i*0x10 + 0x3][6] = writeAddress;
 				newCPU->ops[i*0x10 + 0x6][2] = readZpX;
 				newCPU->ops[i*0x10 + 0x7][2] = readZpX;
 				newCPU->ops[i*0x10 + 0xe][3] = writeAbsX;
@@ -1047,9 +1035,31 @@ cpu *cpu_create()
 				newCPU->ops[i*0x10 + 0x4][3] = nop;
 				newCPU->ops[i*0x10 + 0xc][4] = nop;
 			}
+
+			if (i != 0x9)
+			{
+				newCPU->ops[i*0x10 + 0x1][4] = readIndirect;
+				newCPU->ops[i*0x10 + 0x3][4] = readIndirect;
+				newCPU->ops[i*0x10 + 0xc][3] = readAbsX;
+				newCPU->ops[i*0x10 + 0xd][3] = readAbsX;
+				newCPU->ops[i*0x10 + 0x9][3] = readAbsY;
+			}
 		}
 		else
 		{
+			if ((i & 0xc) != 0x8)
+			{
+				newCPU->ops[i*0x10 + 0xe][3] = readAddress;
+				newCPU->ops[i*0x10 + 0x6][2] = readAddress;
+				newCPU->ops[i*0x10 + 0xf][3] = readAddress;
+				newCPU->ops[i*0x10 + 0x7][2] = readAddress;
+				newCPU->ops[i*0x10 + 0x6][3] = writeAddress;
+				newCPU->ops[i*0x10 + 0x7][3] = writeAddress;
+				newCPU->ops[i*0x10 + 0xe][4] = writeAddress;
+				newCPU->ops[i*0x10 + 0xf][4] = writeAddress;
+				newCPU->ops[i*0x10 + 0x3][5] = readAddress;
+				newCPU->ops[i*0x10 + 0x3][6] = writeAddress;
+			}
 			newCPU->ops[i*0x10 + 0x1][3] = fetchIndirectXLow;
 			newCPU->ops[i*0x10 + 0x3][3] = fetchIndirectXLow;
 			newCPU->ops[i*0x10 + 0x1][4] = fetchIndirectXHigh;
@@ -1057,140 +1067,30 @@ cpu *cpu_create()
 		}
 	}
 
-	newCPU->ops[0x03][5] = readAddress;
-	newCPU->ops[0x13][5] = readAddress;
-	newCPU->ops[0x23][5] = readAddress;
-	newCPU->ops[0x33][5] = readAddress;
-	newCPU->ops[0x43][5] = readAddress;
-	newCPU->ops[0x53][5] = readAddress;
-	newCPU->ops[0x63][5] = readAddress;
-	newCPU->ops[0x73][5] = readAddress;
-	newCPU->ops[0xc3][5] = readAddress;
-	newCPU->ops[0xd3][5] = readAddress;
-	newCPU->ops[0xe3][5] = readAddress;
-	newCPU->ops[0xf3][5] = readAddress;
-
-	newCPU->ops[0x0e][3] = readAddress;
-	newCPU->ops[0x2e][3] = readAddress;
-	newCPU->ops[0x4e][3] = readAddress;
-	newCPU->ops[0x6e][3] = readAddress;
-	newCPU->ops[0xce][3] = readAddress;
-	newCPU->ops[0xee][3] = readAddress;
-
-	newCPU->ops[0x06][2] = readAddress;
-	newCPU->ops[0x26][2] = readAddress;
-	newCPU->ops[0x46][2] = readAddress;
-	newCPU->ops[0x66][2] = readAddress;
-	newCPU->ops[0xc6][2] = readAddress;
-	newCPU->ops[0xe6][2] = readAddress;
-
-	newCPU->ops[0x0f][3] = readAddress;
-	newCPU->ops[0x2f][3] = readAddress;
-	newCPU->ops[0x4f][3] = readAddress;
-	newCPU->ops[0x6f][3] = readAddress;
-	newCPU->ops[0xcf][3] = readAddress;
-	newCPU->ops[0xef][3] = readAddress;
-
-	newCPU->ops[0x07][2] = readAddress;
-	newCPU->ops[0x27][2] = readAddress;
-	newCPU->ops[0x47][2] = readAddress;
-	newCPU->ops[0x67][2] = readAddress;
-	newCPU->ops[0xc7][2] = readAddress;
-	newCPU->ops[0xe7][2] = readAddress;
-
 	newCPU->ops[0x6c][3] = readAddress;
 
+	newCPU->ops[0x20][1] = fetchADL;
 
-	newCPU->ops[0x06][3] = writeAddress;
-	newCPU->ops[0x26][3] = writeAddress;
-	newCPU->ops[0x46][3] = writeAddress;
-	newCPU->ops[0x66][3] = writeAddress;
-	newCPU->ops[0xc6][3] = writeAddress;
-	newCPU->ops[0xe6][3] = writeAddress;
-
-	newCPU->ops[0x07][3] = writeAddress;
-	newCPU->ops[0x27][3] = writeAddress;
-	newCPU->ops[0x47][3] = writeAddress;
-	newCPU->ops[0x67][3] = writeAddress;
-	newCPU->ops[0xc7][3] = writeAddress;
-	newCPU->ops[0xe7][3] = writeAddress;
-
-	newCPU->ops[0x03][6] = writeAddress;
-	newCPU->ops[0x13][6] = writeAddress;
-	newCPU->ops[0x23][6] = writeAddress;
-	newCPU->ops[0x33][6] = writeAddress;
-	newCPU->ops[0x43][6] = writeAddress;
-	newCPU->ops[0x53][6] = writeAddress;
-	newCPU->ops[0x63][6] = writeAddress;
-	newCPU->ops[0x73][6] = writeAddress;
-	newCPU->ops[0xc3][6] = writeAddress;
-	newCPU->ops[0xd3][6] = writeAddress;
-	newCPU->ops[0xe3][6] = writeAddress;
-	newCPU->ops[0xf3][6] = writeAddress;
-
-	newCPU->ops[0x0e][4] = writeAddress;
-	newCPU->ops[0x2e][4] = writeAddress;
-	newCPU->ops[0x4e][4] = writeAddress;
-	newCPU->ops[0x6e][4] = writeAddress;
-	newCPU->ops[0xce][4] = writeAddress;
-	newCPU->ops[0xee][4] = writeAddress;
-
-	newCPU->ops[0x0f][4] = writeAddress;
-	newCPU->ops[0x2f][4] = writeAddress;
-	newCPU->ops[0x4f][4] = writeAddress;
-	newCPU->ops[0x6f][4] = writeAddress;
-	newCPU->ops[0xcf][4] = writeAddress;
-	newCPU->ops[0xef][4] = writeAddress;
+	newCPU->ops[0x00][1] = fetchValue;
+	newCPU->ops[0x10][1] = fetchValue;
+	newCPU->ops[0x30][1] = fetchValue;
+	newCPU->ops[0x40][1] = fetchValue;
+	newCPU->ops[0x50][1] = fetchValue;
+	newCPU->ops[0x60][1] = fetchValue;
+	newCPU->ops[0x70][1] = fetchValue;
+	newCPU->ops[0x90][1] = fetchValue;
+	newCPU->ops[0xb0][1] = fetchValue;
+	newCPU->ops[0xd0][1] = fetchValue;
+	newCPU->ops[0xf0][1] = fetchValue;
 
 	newCPU->ops[0x96][2] = readZpY;
 	newCPU->ops[0xb6][2] = readZpY;
 	newCPU->ops[0x97][2] = readZpY;
 	newCPU->ops[0xb7][2] = readZpY;
 
-	newCPU->ops[0x11][4] = readIndirect;
-	newCPU->ops[0x31][4] = readIndirect;
-	newCPU->ops[0x51][4] = readIndirect;
-	newCPU->ops[0x71][4] = readIndirect;
-	newCPU->ops[0xb1][4] = readIndirect;
-	newCPU->ops[0xd1][4] = readIndirect;
-	newCPU->ops[0xf1][4] = readIndirect;
-
-	newCPU->ops[0x13][4] = readIndirect;
-	newCPU->ops[0x33][4] = readIndirect;
-	newCPU->ops[0x53][4] = readIndirect;
-	newCPU->ops[0x73][4] = readIndirect;
-	newCPU->ops[0xb3][4] = readIndirect;
-	newCPU->ops[0xd3][4] = readIndirect;
-	newCPU->ops[0xf3][4] = readIndirect;
-
 	newCPU->ops[0x91][4] = writeIndirect;
 
-
-	newCPU->ops[0x1d][3] = readAbsX;
-	newCPU->ops[0x3d][3] = readAbsX;
-	newCPU->ops[0x5d][3] = readAbsX;
-	newCPU->ops[0x7d][3] = readAbsX;
-	newCPU->ops[0xbd][3] = readAbsX;
-	newCPU->ops[0xdd][3] = readAbsX;
-	newCPU->ops[0xfd][3] = readAbsX;
-
-	newCPU->ops[0x1c][3] = readAbsX;
-	newCPU->ops[0x3c][3] = readAbsX;
-	newCPU->ops[0x5c][3] = readAbsX;
-	newCPU->ops[0x7c][3] = readAbsX;
-	newCPU->ops[0xbc][3] = readAbsX;
-	newCPU->ops[0xdc][3] = readAbsX;
-	newCPU->ops[0xfc][3] = readAbsX;
-
 	newCPU->ops[0x9d][3] = writeAbsX;
-
-	newCPU->ops[0x19][3] = readAbsY;
-	newCPU->ops[0x39][3] = readAbsY;
-	newCPU->ops[0x59][3] = readAbsY;
-	newCPU->ops[0x79][3] = readAbsY;
-	newCPU->ops[0xb9][3] = readAbsY;
-	newCPU->ops[0xd9][3] = readAbsY;
-	newCPU->ops[0xf9][3] = readAbsY;
 
 	newCPU->ops[0xbe][3] = readAbsY;
 	newCPU->ops[0xbf][3] = readAbsY;
@@ -1344,7 +1244,6 @@ cpu *cpu_create()
 	newCPU->ops[0xef][5] = isc;
 	newCPU->ops[0xff][6] = isc;
 
-
 	newCPU->ops[0x91][5] = sta;
 	newCPU->ops[0x81][5] = sta;	
 	newCPU->ops[0x85][2] = sta;
@@ -1361,7 +1260,6 @@ cpu *cpu_create()
 	newCPU->ops[0x86][2] = stx;
 	newCPU->ops[0x96][3] = stx;
 	newCPU->ops[0x8e][3] = stx;
-
 
 	newCPU->ops[0x84][2] = sty;
 	newCPU->ops[0x94][3] = sty;
