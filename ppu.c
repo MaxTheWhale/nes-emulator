@@ -41,7 +41,6 @@ struct ppu
     bool sprite_en;
     bool rendering_en;
     bool vblank;
-    bool hblank;
 	bool nmi;
     bool nmi_occurred;
     bool odd_frame;
@@ -267,6 +266,89 @@ void checkRegisters(ppu *p)
     }
 }
 
+void perform_background_fetches(ppu *p)
+{
+    switch (p->dot % 8)
+    {
+    case 2:
+        p->current_tile = *p->memory[getNametableAddr(p->address_v)];
+        break;
+    case 4:
+        p->current_attr = *p->memory[getAttributeAddr(p->address_v)];
+        break;
+    case 6:
+        p->current_pattern_low = *p->memory[getPatternAddr(p)];
+        break;
+    case 0:
+        p->current_pattern_high = *p->memory[getPatternAddr(p) + 8];
+        break;
+    }
+}
+
+void update_shift_registers(ppu *p)
+{
+    p->pattern_shift_low <<= 1;
+    p->pattern_shift_high <<= 1;
+    p->attr_shift_low <<= 1;
+    p->attr_shift_high <<= 1;
+    if (p->attr_latch_low) p->attr_shift_low++;
+    if (p->attr_latch_high) p->attr_shift_high++;
+
+    if (p->dot % 8 == 1)
+    {
+        p->pattern_shift_low &= 0xff00;
+        p->pattern_shift_high &= 0xff00;
+        p->pattern_shift_low |= p->current_pattern_low;
+        p->pattern_shift_high |= p->current_pattern_high;
+
+        uint8_t attr = p->current_attr;
+        if ((p->address_v - 1) & 0x02) attr >>= 2;
+        if (p->address_v & 0x40) attr >>= 4;
+        p->attr_latch_low = (attr & 1) ? true : false;
+        p->attr_latch_high = (attr & 2) ? true : false;
+    }
+}
+
+void increment_horizontal_v(ppu *p)
+{
+    if ((p->address_v & COARSE_X) == 31)
+    {
+        p->address_v &= ~COARSE_X;
+        p->address_v ^= NAMETABLE_X;
+    }
+    else
+    {
+        p->address_v += 1;
+    }
+}
+
+void increment_vertical_v(ppu *p)
+{
+    if ((p->address_v & FINE_Y) < 0x7000)
+    {     
+        p->address_v += 0x1000;
+    }
+    else
+    {
+        p->address_v &= ~FINE_Y;
+        int y = (p->address_v & COARSE_Y) >> 5;
+        if (y == 29)
+        {
+            y = 0;
+            p->address_v ^= NAMETABLE_Y;
+        }                 
+        else if (y == 31)
+        {
+            y = 0;
+        }
+        else
+        {
+            y += 1;
+            p->address_v = (p->address_v & ~COARSE_Y) | (y << 5);
+        }
+    }
+}
+
 void incrementDot(ppu *p)
 {
     if (++p->dot > 340)
@@ -290,14 +372,6 @@ uint16_t ppu_executeCycle(ppu *p)
 {
     incrementDot(p);
 
-    if (p->dot == 257)
-    {
-        p->hblank = true;
-    }
-    if (p->dot == 321)
-    {
-        p->hblank = false;
-    }
     if (p->scanline == 240 && p->dot == 0)
     {
         p->vblank = true;
@@ -320,78 +394,21 @@ uint16_t ppu_executeCycle(ppu *p)
 
     if (p->rendering_en && !p->vblank)
     {
-        if (!p->hblank && p->dot != 0)
+        if ((p->dot >= 2 && p->dot <= 257) || (p->dot >= 322 && p->dot <= 337))
         {
-            p->pattern_shift_low <<= 1;
-            p->pattern_shift_high <<= 1;
-            p->attr_shift_low <<= 1;
-            p->attr_shift_high <<= 1;
-            if (p->attr_latch_low) p->attr_shift_low++;
-            if (p->attr_latch_high) p->attr_shift_high++;
+            update_shift_registers(p);
+        }
+        if ((p->dot >= 1 && p->dot <= 256) || (p->dot >= 321 && p->dot <= 336))
+        {
+            perform_background_fetches(p);
             if (p->dot % 8 == 0)
             {
-                p->current_pattern_high = *p->memory[getPatternAddr(p) + 8];
-                if ((p->address_v & COARSE_X) == 31)
-                {
-                    p->address_v &= ~COARSE_X;
-                    p->address_v ^= NAMETABLE_X;
-                }
-                else
-                {
-                    p->address_v += 1;
-                }
-            }
-            if (p->dot % 8 == 1)
-            {
-                p->pattern_shift_low &= 0xff00;
-                p->pattern_shift_high &= 0xff00;
-                p->pattern_shift_low |= p->current_pattern_low;
-                p->pattern_shift_high |= p->current_pattern_high;
-
-                uint8_t attr = p->current_attr;
-                if ((p->address_v - 1) & 0x02) attr >>= 2;
-                if (p->address_v & 0x40) attr >>= 4;
-                p->attr_latch_low = (attr & 1) ? true : false;
-                p->attr_latch_high = (attr & 2) ? true : false;
-            }
-            if (p->dot % 8 == 2)
-            {
-                p->current_tile = *p->memory[getNametableAddr(p->address_v)];
-            }
-            if (p->dot % 8 == 4)
-            {
-                p->current_attr = *p->memory[getAttributeAddr(p->address_v)];
-            }
-            if (p->dot % 8 == 6)
-            {
-                p->current_pattern_low = *p->memory[getPatternAddr(p)];
+                increment_horizontal_v(p);
             }
         }
         if (p->dot == 256)
         {
-            if ((p->address_v & FINE_Y) < 0x7000)
-            {     
-                p->address_v += 0x1000;
-            }
-            else
-            {
-                p->address_v &= ~FINE_Y;
-                int y = (p->address_v & COARSE_Y) >> 5;
-                if (y == 29)
-                {
-                    y = 0;
-                    p->address_v ^= NAMETABLE_Y;
-                }                 
-                else if (y == 31)
-                {
-                    y = 0;
-                }
-                else
-                {
-                    y += 1;
-                    p->address_v = (p->address_v & ~COARSE_Y) | (y << 5);
-                }
-            }
+            increment_vertical_v(p);
         }
         if (p->dot == 257)
         {
@@ -408,6 +425,6 @@ uint16_t ppu_executeCycle(ppu *p)
     p->reg_access_prev = *p->reg_access;
     p->write_prev = *p->write;
 
-    return (p->dot < 256 && p->scanline < 240) ? calcPixel(p) : 0xffff;
+    return (p->dot < 257 && p->dot > 0 && p->scanline < 240) ? calcPixel(p) : 0xffff;
 }
 

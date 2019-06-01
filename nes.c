@@ -164,8 +164,8 @@ bool nes_stepCycle(nes* n)
         uint16_t pixel = ppu_executeCycle(n->ppu);
         if (pixel < 0x200)
         {
-            n->framebuffer[*n->scanline * 256 + *n->dot] = n->palette[pixel];
-            if (*n->scanline == 239 && *n->dot == 255)
+            n->framebuffer[*n->scanline * 256 + (*n->dot - 1)] = n->palette[pixel];
+            if (*n->scanline == 239 && *n->dot == 256)
                 finished_frame = true;
         }
     }
