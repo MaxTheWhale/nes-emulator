@@ -79,7 +79,10 @@ ppu* ppu_create()
     {
         newPPU->memory[0x3f00 + i] = &newPPU->palette[i % 0x20];
     }
-    
+    for (int i = 0; i < 8; i++)
+    {
+        newPPU->memory[0x3f00 + (i*4)] = newPPU->memory[0x3f00 + ((i*4) & ~0x10)];
+    }
     return newPPU;
 }
 
@@ -155,14 +158,12 @@ uint16_t getAttributeAddr(uint16_t v)
     return 0x23c0 + ((v & NAMETABLE) | (v & ATTR_X) >> 2 | (v & ATTR_Y) >> 4);
 }
 
-uint16_t getPatternAddr(uint8_t tile, uint16_t v, bool upper, bool right)
+uint16_t getPatternAddr(ppu *p)
 {
     uint16_t result = 0;
-    if (right) result |= 0x1000;
-    if (upper) result |= 0x8;
-    result |= (tile << 4);
-    result |= ((v & FINE_Y) >> 12);
-    //printf("tile: %x, result: %x", tile, result);
+    result += p->bg_base;
+    result |= (p->current_tile << 4);
+    result |= ((p->address_v & FINE_Y) >> 12);
     return result;
 }
 
@@ -176,6 +177,7 @@ uint16_t calcPixel(ppu *p)
         if (p->attr_shift_low & 0x80) pallete_index |= 4;
         if (p->attr_shift_high & 0x80) pallete_index |= 8;
     }
+    if ((pallete_index & 0x13) == 0x10) pallete_index &= ~0x10;
     return p->palette[pallete_index];
 }
 
@@ -248,9 +250,8 @@ void checkRegisters(ppu *p)
                 break;
 
             case PPUDATA:
-                *p->memory[p->address_v] = p->PPUDATA;
+                *p->memory[p->address_v & 0x3fff] = p->PPUDATA;
                 p->address_v += p->vram_inc;
-                p->address_v &= 0x3fff;
                 break;
             }
         }
@@ -266,14 +267,12 @@ void checkRegisters(ppu *p)
     }
 }
 
-uint16_t ppu_executeCycle(ppu *p)
+void incrementDot(ppu *p)
 {
-    p->dot++;
-    if (p->dot > 340)
+    if (++p->dot > 340)
     {
         p->dot = 0;
-        p->scanline++;
-        if (p->scanline > 261)
+        if (++p->scanline > 261)
         {
             if (p->odd_frame)
             {
@@ -285,6 +284,11 @@ uint16_t ppu_executeCycle(ppu *p)
             p->scanline = 0;
         }
     }
+}
+
+uint16_t ppu_executeCycle(ppu *p)
+{
+    incrementDot(p);
 
     if (p->dot == 257)
     {
@@ -326,7 +330,7 @@ uint16_t ppu_executeCycle(ppu *p)
             if (p->attr_latch_high) p->attr_shift_high++;
             if (p->dot % 8 == 0)
             {
-                p->current_pattern_high = *p->memory[getPatternAddr(p->current_tile, p->address_v, true, p->bg_base)];
+                p->current_pattern_high = *p->memory[getPatternAddr(p) + 8];
                 if ((p->address_v & COARSE_X) == 31)
                 {
                     p->address_v &= ~COARSE_X;
@@ -360,7 +364,7 @@ uint16_t ppu_executeCycle(ppu *p)
             }
             if (p->dot % 8 == 6)
             {
-                p->current_pattern_low = *p->memory[getPatternAddr(p->current_tile, p->address_v, false, p->bg_base)];
+                p->current_pattern_low = *p->memory[getPatternAddr(p)];
             }
         }
         if (p->dot == 256)
@@ -401,7 +405,6 @@ uint16_t ppu_executeCycle(ppu *p)
         }
     }
 
-    //ppu_print(p);
     p->reg_access_prev = *p->reg_access;
     p->write_prev = *p->write;
 
