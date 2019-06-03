@@ -26,12 +26,16 @@ struct ppu
     uint8_t current_pattern_high;
     uint16_t pattern_shift_low;
     uint16_t pattern_shift_high;
+    uint8_t sprite_shift_low[8];
+    uint8_t sprite_shift_high[8];
+    uint8_t sprite_counter[8];
     uint16_t attr_shift_low;
     uint16_t attr_shift_high;
     uint16_t bg_base;
     uint16_t sprite_base;
     bool attr_latch_low;
     bool attr_latch_high;
+    bool sprite_latch[8];
 	bool *write;
     bool write_prev;
     bool *reg_access;
@@ -59,6 +63,7 @@ struct ppu
     uint16_t scanline;
 
     uint8_t oam[0x100];
+    uint8_t secondary_oam[0x20];
     uint8_t palette[0x20];
     uint8_t *memory[0x4000];
 };

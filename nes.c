@@ -32,6 +32,7 @@ void mapCPU_PPU(nes *n)
     cpu_mapMemory(n->cpu, 0x2006, ppu_getPPUADDR(n->ppu), true);
     cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), false);
     cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), true);
+    cpu_mapMemory(n->cpu, 0x4014, &n->dma_page, true);
     cpu_mapMemory(n->cpu, 0x4016, &n->pad_latch, true);
     cpu_mapMemory(n->cpu, 0x4016, &n->pad1_port, false);
     cpu_mapMemory(n->cpu, 0x4017, &n->pad2_port, false);
@@ -137,7 +138,20 @@ void nes_loadPalette(nes *n, char *palette)
 bool nes_stepCycle(nes* n)
 {
     bool finished_frame = false;
-    cpu_executeCycle(n->cpu);
+    if (n->dma)
+    {
+        if (n->dma_count > 0)
+        {
+            if (n->dma_count % 2)
+                n->dma_byte = cpu_readMemory(n->cpu, (n->dma_page << 8) | (n->dma_count / 2));
+            else
+                cpu_writeMemory(n->cpu, 0x2006, n->dma_byte);
+            if (n->dma_count == 512)
+                n->dma = false;
+        }
+        n->dma_count++;
+    }
+    else cpu_executeCycle(n->cpu);
     if ((*n->address & 0xe000) == 0x2000)
     {
         n->reg_access = true;
@@ -158,7 +172,12 @@ bool nes_stepCycle(nes* n)
     {
         n->pad1_count++;
         n->pad1_port = 0x40 | ((n->pad1_state >> n->pad1_count) & 1);
-    } 
+    }
+    if (*n->address == 0x4014 && *n->write && !n->dma)
+    {
+        n->dma = true;
+        n->dma_count = 0;
+    }
     for (int i = 0; i < 3; i++)
     {
         uint16_t pixel = ppu_executeCycle(n->ppu);

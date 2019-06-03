@@ -18,6 +18,10 @@ struct nes
     uint8_t pad_latch;
     bool reg_access;
     bool *write;
+    bool dma;
+    uint8_t dma_page;
+    uint8_t dma_byte;
+    uint16_t dma_count;
     uint8_t ram[0x800];
     uint8_t vram[0x800];
     uint32_t palette[512];
