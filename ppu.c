@@ -29,13 +29,21 @@ struct ppu
     uint8_t sprite_shift_low[8];
     uint8_t sprite_shift_high[8];
     uint8_t sprite_counter[8];
+    uint8_t sprite_offset[8];
+    uint8_t eval_n : 6;
+    uint8_t eval_m : 2;
+    uint8_t eval_sn;
+    uint8_t sprites_on_line;
+    uint8_t eval_temp;
+    uint8_t eval_stage;
     uint16_t attr_shift_low;
     uint16_t attr_shift_high;
     uint16_t bg_base;
     uint16_t sprite_base;
     bool attr_latch_low;
     bool attr_latch_high;
-    bool sprite_latch[8];
+    bool sprite_latch_low[8];
+    bool sprite_latch_high[8];
 	bool *write;
     bool write_prev;
     bool *reg_access;
@@ -83,7 +91,7 @@ ppu* ppu_create()
     {
         newPPU->memory[0x3f00 + i] = &newPPU->palette[i % 0x20];
     }
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 0x40; i++)
     {
         newPPU->memory[0x3f00 + (i*4)] = newPPU->memory[0x3f00 + ((i*4) & ~0x10)];
     }
@@ -171,18 +179,70 @@ uint16_t getPatternAddr(ppu *p)
     return result;
 }
 
+uint16_t getSpriteAddr(ppu *p)
+{
+    uint16_t result = 0;
+    result += p->sprite_base;
+    result |= (p->secondary_oam[p->eval_sn*4 + 1] << 4);
+    uint8_t y_offset = (uint8_t)(p->scanline - p->secondary_oam[p->eval_sn*4]);
+    if (p->secondary_oam[p->eval_sn*4 + 2] & 0x80)
+        y_offset = 7 - y_offset;
+    result |= y_offset;
+    return result;
+}
+
+uint8_t flipByte(uint8_t data)
+{
+    uint8_t new = 0;
+    if (data & 0x80) new |= 0x1;
+    if (data & 0x40) new |= 0x2;
+    if (data & 0x20) new |= 0x4;
+    if (data & 0x10) new |= 0x8;
+    if (data & 0x8) new |= 0x10;
+    if (data & 0x4) new |= 0x20;
+    if (data & 0x2) new |= 0x40;
+    if (data & 0x1) new |= 0x80;
+    return new;
+}
+
 uint16_t calcPixel(ppu *p)
 {
-    uint8_t pallete_index = 0;
-    if (p->pattern_shift_low & 0x8000) pallete_index |= 1;
-    if (p->pattern_shift_high & 0x8000) pallete_index |= 2;
-    if (pallete_index != 0)
+    uint8_t bg_palette = 0;
+    if (p->pattern_shift_low & (0x8000 >> p->fine_x)) bg_palette |= 1;
+    if (p->pattern_shift_high & (0x8000 >> p->fine_x)) bg_palette |= 2;
+    if (bg_palette > 0)
     {
-        if (p->attr_shift_low & 0x80) pallete_index |= 4;
-        if (p->attr_shift_high & 0x80) pallete_index |= 8;
+        if (p->attr_shift_low & (0x80 >> p->fine_x)) bg_palette |= 4;
+        if (p->attr_shift_high & (0x80 >> p->fine_x)) bg_palette |= 8;
     }
-    if ((pallete_index & 0x13) == 0x10) pallete_index &= ~0x10;
-    return p->palette[pallete_index];
+
+    uint8_t sprite_palette = 0x10;
+    for (int i = 0; i < p->sprites_on_line; i++)
+    {
+        if (p->sprite_counter[i] == 0)
+        {
+            uint8_t pattern = 0;
+            if (p->sprite_shift_low[i] & 0x80) pattern |= 1;
+            if (p->sprite_shift_high[i] & 0x80) pattern |= 2;
+            if (pattern > 0)
+            {
+                sprite_palette = 0x10;
+                sprite_palette |= pattern;
+                if (p->sprite_latch_low[i]) sprite_palette |= 4;
+                if (p->sprite_latch_high[i]) sprite_palette |= 8;
+                if (bg_palette > 0)
+                {
+                    if (i == 0)
+                        p->PPUSTATUS |= 0x40;
+                    if (p->secondary_oam[i*4 + 2] & 0x20)
+                        sprite_palette = 0x10;
+                }
+            }
+        }
+    }
+    if (sprite_palette > 0x10)
+        bg_palette = sprite_palette;
+    return p->palette[bg_palette];
 }
 
 void ppu_print(ppu *p)
@@ -218,6 +278,11 @@ void checkRegisters(ppu *p)
                 p->background_en = (p->PPUMASK & 0x8);
                 p->sprite_en = (p->PPUMASK & 0x10);
                 p->rendering_en = p->sprite_en || p->background_en;
+                break;
+
+            case OAMDATA:
+                p->oam[p->OAMADDR] = p->OAMDATA;
+                p->OAMADDR++;
                 break;
 
             case PPUSCROLL:
@@ -290,6 +355,34 @@ void perform_background_fetches(ppu *p)
     }
 }
 
+void perform_sprite_fetches(ppu *p)
+{
+    switch (p->dot % 8)
+    {
+    case 2:
+        p->current_tile = *p->memory[getNametableAddr(p->address_v)];
+        break;
+    case 4:
+        p->current_attr = *p->memory[getAttributeAddr(p->address_v)];
+        p->sprite_latch_low[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 1) ? true : false;
+        p->sprite_latch_high[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 2) ? true : false;
+        p->sprite_counter[p->eval_sn] = p->secondary_oam[p->eval_sn*4 + 3];
+        p->sprite_offset[p->eval_sn] = 0;
+        break;
+    case 6:
+        p->sprite_shift_low[p->eval_sn] = (p->eval_sn < p->sprites_on_line) ? *p->memory[getSpriteAddr(p)] : 0;
+        if (p->secondary_oam[p->eval_sn*4 + 2] & 0x40)
+            p->sprite_shift_low[p->eval_sn] = flipByte(p->sprite_shift_low[p->eval_sn]);
+        break;
+    case 0:
+        p->sprite_shift_high[p->eval_sn] = (p->eval_sn < p->sprites_on_line) ? *p->memory[getSpriteAddr(p) + 8] : 0;
+        if (p->secondary_oam[p->eval_sn*4 + 2] & 0x40)
+            p->sprite_shift_high[p->eval_sn] = flipByte(p->sprite_shift_high[p->eval_sn]);
+        p->eval_sn++;
+        break;
+    }
+}
+
 void update_shift_registers(ppu *p)
 {
     p->pattern_shift_low <<= 1;
@@ -298,6 +391,26 @@ void update_shift_registers(ppu *p)
     p->attr_shift_high <<= 1;
     if (p->attr_latch_low) p->attr_shift_low++;
     if (p->attr_latch_high) p->attr_shift_high++;
+
+    if (p->dot <= 257)
+    {
+        for (int i = 0; i < p->sprites_on_line; i++)
+        {
+            if (p->sprite_counter[i] > 0)
+                p->sprite_counter[i]--;
+            else
+            {
+                if (p->sprite_offset[i] < 8)
+                {
+                    p->sprite_offset[i]++;
+                    p->sprite_shift_low[i] <<= 1;
+                    p->sprite_shift_high[i] <<= 1;
+                }
+                else
+                    p->sprite_counter[i] = 255;
+            }
+        }
+    }
 
     if (p->dot % 8 == 1)
     {
@@ -350,6 +463,84 @@ void increment_vertical_v(ppu *p)
         {
             y += 1;
             p->address_v = (p->address_v & ~COARSE_Y) | (y << 5);
+        }
+    }
+}
+
+void sprite_evaluation(ppu *p)
+{
+    if (p->dot == 0)
+    {
+        p->eval_m = 0;
+        p->eval_n = 0;
+        p->eval_sn = 0;
+        p->eval_stage = 0;
+    }
+    if (p->dot >= 1 && p->dot <= 64)
+    {
+        p->secondary_oam[(p->dot-1) / 2] = 0xff;
+    }
+    if (p->dot >= 65 && p->dot <= 256)
+    {
+        if (p->dot % 2)
+        {
+            switch (p->eval_stage)
+            {
+            case 0:
+                p->eval_temp = p->oam[p->eval_n*4 + p->eval_m];
+                break;
+            case 1:
+                p->eval_m++;
+                p->eval_temp = p->oam[p->eval_n*4 + p->eval_m];
+                break;
+            case 2:
+                p->eval_m = 0;
+                p->eval_n++;
+                p->eval_temp = p->oam[p->eval_n*4 + p->eval_m];
+                if (p->eval_n == 0)
+                    p->eval_stage = 4;
+                else if (p->eval_sn < 8)
+                    p->eval_stage = 0;
+                else
+                    p->eval_stage = 3;
+                break;
+            case 3:
+                p->eval_temp = p->oam[p->eval_n*4 + p->eval_m];
+                if (p->eval_temp+7 >= p->scanline && p->eval_temp <= p->scanline)
+                    p->PPUSTATUS &= ~0x40;
+                else
+                {
+                    p->eval_m++;
+                    if (++p->eval_n == 0)
+                        p->eval_stage = 4;
+                }
+                break;
+            case 4:
+                p->eval_temp = p->oam[p->eval_n*4];
+                p->eval_n++;
+                break;
+            }
+        }
+        else if (p->eval_sn < 8)
+        {
+            switch (p->eval_stage)
+            {
+            case 0:
+                p->secondary_oam[p->eval_sn*4 + p->eval_m] = p->eval_temp;
+                if (p->eval_temp+7 >= p->scanline && p->eval_temp <= p->scanline)
+                    p->eval_stage = 1;
+                else
+                    p->eval_stage = 2;
+                break;
+            case 1:
+                p->secondary_oam[p->eval_sn*4 + p->eval_m] = p->eval_temp;
+                if (p->eval_m == 3)
+                {
+                    p->eval_stage = 2;
+                    p->eval_sn++;
+                }
+                break;
+            }
         }
     }
 }
@@ -411,8 +602,19 @@ uint16_t ppu_executeCycle(ppu *p)
                 increment_horizontal_v(p);
             }
         }
+        else if (p->dot >= 257 && p->dot <= 320)
+        {
+            perform_sprite_fetches(p);
+        }
+        if (p->dot <= 256 && p->scanline < 240)
+        {
+            sprite_evaluation(p);
+        }  
         if (p->dot == 256)
         {
+            p->sprites_on_line = p->eval_sn;
+            p->eval_sn = 0;
+            p->eval_n = 0;
             increment_vertical_v(p);
         }
         if (p->dot == 257)

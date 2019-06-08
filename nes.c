@@ -28,6 +28,7 @@ void mapCPU_PPU(nes *n)
     cpu_mapMemory(n->cpu, 0x2002, ppu_getPPUSTATUS(n->ppu), false);
     cpu_mapMemory(n->cpu, 0x2003, ppu_getOAMADDR(n->ppu), true);
     cpu_mapMemory(n->cpu, 0x2004, ppu_getOAMDATA(n->ppu), false);
+    cpu_mapMemory(n->cpu, 0x2004, ppu_getOAMDATA(n->ppu), true);
     cpu_mapMemory(n->cpu, 0x2005, ppu_getPPUSCROLL(n->ppu), true);
     cpu_mapMemory(n->cpu, 0x2006, ppu_getPPUADDR(n->ppu), true);
     cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), false);
@@ -145,7 +146,7 @@ bool nes_stepCycle(nes* n)
             if (n->dma_count % 2)
                 n->dma_byte = cpu_readMemory(n->cpu, (n->dma_page << 8) | (n->dma_count / 2));
             else
-                cpu_writeMemory(n->cpu, 0x2006, n->dma_byte);
+                cpu_writeMemory(n->cpu, 0x2004, n->dma_byte);
             if (n->dma_count == 512)
                 n->dma = false;
         }
