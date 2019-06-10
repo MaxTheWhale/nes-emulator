@@ -15,6 +15,7 @@ enum { FINE_Y      = 0x7000,
 struct ppu
 {
 	uint16_t *cpu_address;
+    uint16_t ppu_address;
     uint16_t address_v;
     uint16_t address_temp;
     uint8_t fine_x;
@@ -48,7 +49,8 @@ struct ppu
     bool write_prev;
     bool *reg_access;
     bool reg_access_prev;
-    bool vblank_clear;
+    bool status_read;
+    bool data_read;
     bool background_en;
     bool sprite_en;
     bool rendering_en;
@@ -57,6 +59,8 @@ struct ppu
     bool nmi_occurred;
     bool odd_frame;
     bool write_latch;
+    bool sprite0_this_line;
+    bool sprite0_next_line;
 
     uint8_t PPUCTRL;
     uint8_t PPUMASK;
@@ -66,6 +70,7 @@ struct ppu
     uint8_t PPUSCROLL;
     uint8_t PPUADDR;
     uint8_t PPUDATA;
+    uint8_t data_buffer;
 
     uint16_t dot;
     uint16_t scanline;
@@ -160,6 +165,18 @@ uint8_t* ppu_getPPUDATA(ppu *p)
     return &(p->PPUDATA);
 }
 
+uint8_t readMemory(ppu *p, uint16_t addr)
+{
+    p->ppu_address = addr & 0x3fff;
+    return *p->memory[p->ppu_address];
+}
+
+void writeMemory(ppu *p, uint16_t addr, uint8_t data)
+{
+    p->ppu_address = addr & 0x3fff;
+    *p->memory[p->ppu_address] = data;
+}
+
 uint16_t getNametableAddr(uint16_t v)
 {
     return 0x2000 + (v & (NAMETABLE | COARSE_Y | COARSE_X));
@@ -232,7 +249,7 @@ uint16_t calcPixel(ppu *p)
                 if (p->sprite_latch_high[i]) sprite_palette |= 8;
                 if (bg_palette > 0)
                 {
-                    if (i == 0)
+                    if (i == 0 && p->sprite0_this_line)
                         p->PPUSTATUS |= 0x40;
                     if (p->secondary_oam[i*4 + 2] & 0x20)
                         sprite_palette = 0x10;
@@ -256,8 +273,16 @@ void checkRegisters(ppu *p)
     bool reg_access = (*p->reg_access && !p->reg_access_prev);
     if (!*p->reg_access && p->reg_access_prev)
     {
-        p->vblank_clear = false;
-        p->PPUSTATUS &= 0x7f;
+        if (p->status_read)
+        {
+            p->status_read = false;
+            p->PPUSTATUS &= 0x7f;
+        }
+        if (p->data_read)
+        {
+            p->data_read = false;
+            p->PPUDATA = readMemory(p, p->address_v);
+        }
     }
     if (reg_access)
     {
@@ -319,18 +344,30 @@ void checkRegisters(ppu *p)
                 break;
 
             case PPUDATA:
-                *p->memory[p->address_v & 0x3fff] = p->PPUDATA;
+                writeMemory(p, p->address_v, p->PPUDATA);
                 p->address_v += p->vram_inc;
                 break;
             }
         }
         else
         {
-            if (reg == PPUDATA)
+            switch (reg)
             {
-                p->vblank_clear = true;
+            case PPUSTATUS:
+                p->status_read = true;
                 p->nmi_occurred = false;
                 p->write_latch = false;
+                break;
+
+            case PPUDATA:
+                p->address_v += p->vram_inc;
+                if ((p->address_v & 0x3fff) >= 0x3f00)
+                {
+                    p->PPUDATA = readMemory(p, p->address_v);
+                }
+                else
+                    p->data_read = true;
+                break;
             }
         }
     }
@@ -341,16 +378,16 @@ void perform_background_fetches(ppu *p)
     switch (p->dot % 8)
     {
     case 2:
-        p->current_tile = *p->memory[getNametableAddr(p->address_v)];
+        p->current_tile = readMemory(p, getNametableAddr(p->address_v));
         break;
     case 4:
-        p->current_attr = *p->memory[getAttributeAddr(p->address_v)];
+        p->current_attr = readMemory(p, getAttributeAddr(p->address_v));
         break;
     case 6:
-        p->current_pattern_low = *p->memory[getPatternAddr(p)];
+        p->current_pattern_low = readMemory(p, getPatternAddr(p));
         break;
     case 0:
-        p->current_pattern_high = *p->memory[getPatternAddr(p) + 8];
+        p->current_pattern_high = readMemory(p, getPatternAddr(p) + 8);
         break;
     }
 }
@@ -360,22 +397,22 @@ void perform_sprite_fetches(ppu *p)
     switch (p->dot % 8)
     {
     case 2:
-        p->current_tile = *p->memory[getNametableAddr(p->address_v)];
+        p->current_tile = readMemory(p, getNametableAddr(p->address_v));
         break;
     case 4:
-        p->current_attr = *p->memory[getAttributeAddr(p->address_v)];
+        p->current_attr = readMemory(p, getAttributeAddr(p->address_v));
         p->sprite_latch_low[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 1) ? true : false;
         p->sprite_latch_high[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 2) ? true : false;
         p->sprite_counter[p->eval_sn] = p->secondary_oam[p->eval_sn*4 + 3];
         p->sprite_offset[p->eval_sn] = 0;
         break;
     case 6:
-        p->sprite_shift_low[p->eval_sn] = (p->eval_sn < p->sprites_on_line) ? *p->memory[getSpriteAddr(p)] : 0;
+        p->sprite_shift_low[p->eval_sn] = (p->eval_sn < p->sprites_on_line) ? readMemory(p, getSpriteAddr(p)) : 0;
         if (p->secondary_oam[p->eval_sn*4 + 2] & 0x40)
             p->sprite_shift_low[p->eval_sn] = flipByte(p->sprite_shift_low[p->eval_sn]);
         break;
     case 0:
-        p->sprite_shift_high[p->eval_sn] = (p->eval_sn < p->sprites_on_line) ? *p->memory[getSpriteAddr(p) + 8] : 0;
+        p->sprite_shift_high[p->eval_sn] = (p->eval_sn < p->sprites_on_line) ? readMemory(p, getSpriteAddr(p) + 8) : 0;
         if (p->secondary_oam[p->eval_sn*4 + 2] & 0x40)
             p->sprite_shift_high[p->eval_sn] = flipByte(p->sprite_shift_high[p->eval_sn]);
         p->eval_sn++;
@@ -475,6 +512,7 @@ void sprite_evaluation(ppu *p)
         p->eval_n = 0;
         p->eval_sn = 0;
         p->eval_stage = 0;
+        p->sprite0_next_line = false;
     }
     if (p->dot >= 1 && p->dot <= 64)
     {
@@ -538,6 +576,8 @@ void sprite_evaluation(ppu *p)
                 {
                     p->eval_stage = 2;
                     p->eval_sn++;
+                    if (p->eval_n == 0)
+                        p->sprite0_next_line = true;
                 }
                 break;
             }
@@ -621,6 +661,7 @@ uint16_t ppu_executeCycle(ppu *p)
         {
             p->address_v &= ~(NAMETABLE_X | COARSE_X);
             p->address_v |= (p->address_temp & (NAMETABLE_X | COARSE_X));
+            p->sprite0_this_line = p->sprite0_next_line;
         }
         if (p->dot >= 280 && p->dot <= 304 && p->scanline == 261)
         {

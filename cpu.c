@@ -891,7 +891,7 @@ void bvc(cpu *c)
 }
 void branch(cpu *c)
 {
-	if (c->temp < 127)
+	if (c->temp < 128)
 	{
 		if (*c->pcL < c->temp)
 		{
@@ -979,6 +979,12 @@ cpu *cpu_create()
     {
         newCPU->ops[i][0] = fetchOp;
 		newCPU->ops[i][1] = stuck;
+		newCPU->ops[i][2] = stuck;
+		newCPU->ops[i][3] = stuck;
+		newCPU->ops[i][4] = stuck;
+		newCPU->ops[i][5] = stuck;
+		newCPU->ops[i][6] = stuck;
+		newCPU->ops[i][7] = stuck;
     }
 
 	for (int i = 0; i < 0x10; i++)
