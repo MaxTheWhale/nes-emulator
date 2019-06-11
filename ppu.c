@@ -70,7 +70,6 @@ struct ppu
     uint8_t PPUSCROLL;
     uint8_t PPUADDR;
     uint8_t PPUDATA;
-    uint8_t data_buffer;
 
     uint16_t dot;
     uint16_t scanline;
@@ -333,6 +332,8 @@ void checkRegisters(ppu *p)
                     p->address_temp &= 0xff00;
                     p->address_temp |= p->PPUADDR;
                     p->address_v = p->address_temp;
+                    if (p->address_v >= 0x3f00)
+                        p->PPUDATA = readMemory(p, p->address_v);
                     p->write_latch = false;
                 }
                 else 
@@ -360,13 +361,10 @@ void checkRegisters(ppu *p)
                 break;
 
             case PPUDATA:
+                p->PPUDATA = readMemory(p, p->address_v);
                 p->address_v += p->vram_inc;
-                if ((p->address_v & 0x3fff) >= 0x3f00)
-                {
+                if (p->address_v >= 0x3f00)
                     p->PPUDATA = readMemory(p, p->address_v);
-                }
-                else
-                    p->data_read = true;
                 break;
             }
         }

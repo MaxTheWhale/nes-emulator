@@ -70,7 +70,7 @@ int main(int n, char **args)
         if (!paused)
         {
             nes_emulateFrame(nes);
-            SDL_Delay(12);
+            SDL_Delay(10);
         }
         SDL_UpdateWindowSurface(window);
     }
