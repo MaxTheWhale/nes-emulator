@@ -499,8 +499,8 @@ void increment_vertical_v(ppu *p)
         else
         {
             y += 1;
-            p->address_v = (p->address_v & ~COARSE_Y) | (y << 5);
         }
+        p->address_v = (p->address_v & ~COARSE_Y) | (y << 5);
     }
 }
 
