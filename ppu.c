@@ -45,6 +45,7 @@ struct ppu
     bool attr_latch_high;
     bool sprite_latch_low[8];
     bool sprite_latch_high[8];
+    bool sprite_priority[8];
 	bool *write;
     bool write_prev;
     bool *reg_access;
@@ -233,7 +234,7 @@ uint16_t calcPixel(ppu *p)
     }
 
     uint8_t sprite_palette = 0x10;
-    for (int i = 0; i < p->sprites_on_line; i++)
+    for (int i = p->sprites_on_line - 1; i >= 0; i--)
     {
         if (p->sprite_counter[i] == 0)
         {
@@ -250,7 +251,7 @@ uint16_t calcPixel(ppu *p)
                 {
                     if (i == 0 && p->sprite0_this_line)
                         p->PPUSTATUS |= 0x40;
-                    if (p->secondary_oam[i*4 + 2] & 0x20)
+                    if (p->sprite_priority[i])
                         sprite_palette = 0x10;
                 }
             }
@@ -401,6 +402,7 @@ void perform_sprite_fetches(ppu *p)
         p->current_attr = readMemory(p, getAttributeAddr(p->address_v));
         p->sprite_latch_low[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 1) ? true : false;
         p->sprite_latch_high[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 2) ? true : false;
+        p->sprite_priority[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 0x20) ? true : false;
         p->sprite_counter[p->eval_sn] = p->secondary_oam[p->eval_sn*4 + 3];
         p->sprite_offset[p->eval_sn] = 0;
         break;
