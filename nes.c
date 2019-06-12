@@ -23,16 +23,19 @@ void mapCPU_PPU(nes *n)
         }
     }
     cpu_mapNMI(n->cpu, ppu_getNMI(n->ppu));
-    cpu_mapMemory(n->cpu, 0x2000, ppu_getPPUCTRL(n->ppu), true);
-    cpu_mapMemory(n->cpu, 0x2001, ppu_getPPUMASK(n->ppu), true);
-    cpu_mapMemory(n->cpu, 0x2002, ppu_getPPUSTATUS(n->ppu), false);
-    cpu_mapMemory(n->cpu, 0x2003, ppu_getOAMADDR(n->ppu), true);
-    cpu_mapMemory(n->cpu, 0x2004, ppu_getOAMDATA(n->ppu), false);
-    cpu_mapMemory(n->cpu, 0x2004, ppu_getOAMDATA(n->ppu), true);
-    cpu_mapMemory(n->cpu, 0x2005, ppu_getPPUSCROLL(n->ppu), true);
-    cpu_mapMemory(n->cpu, 0x2006, ppu_getPPUADDR(n->ppu), true);
-    cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), false);
-    cpu_mapMemory(n->cpu, 0x2007, ppu_getPPUDATA(n->ppu), true);
+    for (int i = 0; i < 0x2000; i += 8)
+    {
+        cpu_mapMemory(n->cpu, 0x2000 + i, ppu_getPPUCTRL(n->ppu), true);
+        cpu_mapMemory(n->cpu, 0x2001 + i, ppu_getPPUMASK(n->ppu), true);
+        cpu_mapMemory(n->cpu, 0x2002 + i, ppu_getPPUSTATUS(n->ppu), false);
+        cpu_mapMemory(n->cpu, 0x2003 + i, ppu_getOAMADDR(n->ppu), true);
+        cpu_mapMemory(n->cpu, 0x2004 + i, ppu_getOAMDATA(n->ppu), false);
+        cpu_mapMemory(n->cpu, 0x2004 + i, ppu_getOAMDATA(n->ppu), true);
+        cpu_mapMemory(n->cpu, 0x2005 + i, ppu_getPPUSCROLL(n->ppu), true);
+        cpu_mapMemory(n->cpu, 0x2006 + i, ppu_getPPUADDR(n->ppu), true);
+        cpu_mapMemory(n->cpu, 0x2007 + i, ppu_getPPUDATA(n->ppu), false);
+        cpu_mapMemory(n->cpu, 0x2007 + i, ppu_getPPUDATA(n->ppu), true);
+    }
     cpu_mapMemory(n->cpu, 0x4014, &n->dma_page, true);
     cpu_mapMemory(n->cpu, 0x4016, &n->pad_latch, true);
     cpu_mapMemory(n->cpu, 0x4016, &n->pad1_port, false);

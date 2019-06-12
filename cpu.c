@@ -49,12 +49,12 @@ inline void clearDecimal(uint8_t *p)   { *p &= 247; }
 inline void clearOverflow(uint8_t *p)  { *p &= 191; }
 inline void clearNegative(uint8_t *p)  { *p &= 127; }
 
-inline uint8_t checkCarry(uint8_t p)     { return p & 1; }
-inline uint8_t checkZero(uint8_t p)      { return p & 2; }
-inline uint8_t checkInterrupt(uint8_t p) { return p & 4; }
-inline uint8_t checkDecimal(uint8_t p)   { return p & 8; }
-inline uint8_t checkOverflow(uint8_t p)  { return p & 64; }
-inline uint8_t checkNegative(uint8_t p)  { return p & 128; }
+inline bool checkCarry(uint8_t p)     { return (p & 1) ? true : false; }
+inline bool checkZero(uint8_t p)      { return (p & 2) ? true : false; }
+inline bool checkInterrupt(uint8_t p) { return (p & 4) ? true : false; }
+inline bool checkDecimal(uint8_t p)   { return (p & 8) ? true : false; }
+inline bool checkOverflow(uint8_t p)  { return (p & 64) ? true : false; }
+inline bool checkNegative(uint8_t p)  { return (p & 128) ? true : false; }
 
 struct cpu
 {
@@ -375,6 +375,12 @@ void nop(cpu *c)
 	c->temp = cpu_readMemory(c, c->pc);
 	c->tick = 0xff;
 }
+void dop(cpu *c)
+{
+	c->temp = cpu_readMemory(c, c->pc);
+	c->pc++;
+	c->tick = 0xff;
+}
 
 void tax(cpu *c)
 {
@@ -445,6 +451,74 @@ void cld(cpu *c)
 void clv(cpu *c)
 {
     clearOverflow(&c->flags);
+	c->tick = 0xff;
+}
+void lsrAccumulator(cpu *c)
+{
+	if (c->accumulator & 0x1) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	loadRegister(c, &c->accumulator, c->accumulator >> 1);
+	c->tick = 0xff;
+}
+void aslAccumulator(cpu *c)
+{
+	if (c->accumulator & 0x80) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	loadRegister(c, &c->accumulator, c->accumulator << 1);
+	c->tick = 0xff;
+}
+void rorAccumulator(cpu *c)
+{
+	uint8_t val = c->accumulator >> 1;
+	if (checkCarry(c->flags)) val |= 0x80;
+	else val &= ~0x80;
+	if (c->accumulator & 0x1) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	loadRegister(c, &c->accumulator, val);
+	c->tick = 0xff;
+}
+void rolAccumulator(cpu *c)
+{
+	uint8_t val = c->accumulator << 1;
+	if (checkCarry(c->flags)) val |= 0x1;
+	else val &= ~0x1;
+	if (c->accumulator & 0x80) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	loadRegister(c, &c->accumulator, val);
+	c->tick = 0xff;
+}
+void lsrMemory(cpu *c)
+{
+	if (c->temp & 0x1) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	writeValue(c, c->ad, c->temp >> 1);
+	c->tick = 0xff;
+}
+void aslMemory(cpu *c)
+{
+	if (c->temp & 0x80) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	writeValue(c, c->ad, c->temp << 1);
+	c->tick = 0xff;
+}
+void rorMemory(cpu *c)
+{
+	uint8_t val = c->temp >> 1;
+	if (checkCarry(c->flags)) val |= 0x80;
+	else val &= ~0x80;
+	if (c->temp & 0x1) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	writeValue(c, c->ad, val);
+	c->tick = 0xff;
+}
+void rolMemory(cpu *c)
+{
+	uint8_t val = c->temp << 1;
+	if (checkCarry(c->flags)) val |= 0x1;
+	else val &= ~0x1;
+	if (c->temp & 0x80) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	writeValue(c, c->ad, val);
 	c->tick = 0xff;
 }
 void inx(cpu *c)
@@ -540,10 +614,83 @@ void and(cpu *c)
 	loadRegister(c, &c->accumulator, (c->temp & c->accumulator));
 	c->tick = 0xff;
 }
+void anc(cpu *c)
+{
+	loadRegister(c, &c->accumulator, (c->temp & c->accumulator));
+	if (c->accumulator & 0x80) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	c->tick = 0xff;
+}
+void alr(cpu *c)
+{
+	and(c);
+	lsrAccumulator(c);
+}
+void alrImmediate(cpu *c)
+{
+	fetchValue(c);
+	alr(c);
+}
+void arr(cpu *c)
+{
+	and(c);
+	rorAccumulator(c);
+	if (c->accumulator & 0x20)
+	{
+		if (c->accumulator & 0x40)
+		{
+			setCarry(&c->flags);
+			clearOverflow(&c->flags);
+		}
+		else
+		{
+			clearCarry(&c->flags);
+			setOverflow(&c->flags);
+		}		
+	}
+	else
+	{
+		if (c->accumulator & 0x40)
+		{
+			setCarry(&c->flags);
+			setOverflow(&c->flags);
+		}
+		else
+		{
+			clearCarry(&c->flags);
+			clearOverflow(&c->flags);
+		}		
+	}
+}
+void arrImmediate(cpu *c)
+{
+	fetchValue(c);
+	arr(c);
+}
 void andImmediate(cpu *c)
 {
 	fetchValue(c);
 	and(c);
+}
+void ancImmediate(cpu *c)
+{
+	fetchValue(c);
+	anc(c);
+}
+void atx(cpu *c)
+{
+	fetchValue(c);
+	loadRegister(c, &c->accumulator, c->temp);
+	loadRegister(c, &c->x, c->accumulator);
+	c->tick = 0xff;
+}
+void axs(cpu *c)
+{
+	fetchValue(c);
+	if (c->temp <= (c->accumulator & c->x)) setCarry(&c->flags);
+	else clearCarry(&c->flags);
+	loadRegister(c, &c->x, (c->accumulator & c->x) - c->temp);
+	c->tick = 0xff;
 }
 void andMemory(cpu *c)
 {
@@ -693,6 +840,22 @@ void sty(cpu *c)
 	cpu_writeMemory(c, c->ad, c->y);
 	c->tick = 0xff;
 }
+void sya(cpu *c)
+{
+	uint8_t result = c->y & (*c->adH + 1);
+	if (cpu_readMemory(c, c->pc - 1) != *c->adH)
+		*c->adH = result;
+	cpu_writeMemory(c, c->ad, result);
+	c->tick = 0xff;
+}
+void sxa(cpu *c)
+{
+	uint8_t result = c->x & (*c->adH + 1);
+	if (cpu_readMemory(c, c->pc - 1) != *c->adH)
+		*c->adH = result;
+	cpu_writeMemory(c, c->ad, result);
+	c->tick = 0xff;
+}
 void dec(cpu *c)
 {
 	writeValue(c, c->ad, c->temp - 1);
@@ -701,74 +864,6 @@ void dec(cpu *c)
 void inc(cpu *c)
 {
 	writeValue(c, c->ad, c->temp + 1);
-	c->tick = 0xff;
-}
-void lsrAccumulator(cpu *c)
-{
-	if (c->accumulator & 0x1) setCarry(&c->flags);
-	else clearCarry(&c->flags);
-	loadRegister(c, &c->accumulator, c->accumulator >> 1);
-	c->tick = 0xff;
-}
-void aslAccumulator(cpu *c)
-{
-	if (c->accumulator & 0x80) setCarry(&c->flags);
-	else clearCarry(&c->flags);
-	loadRegister(c, &c->accumulator, c->accumulator << 1);
-	c->tick = 0xff;
-}
-void rorAccumulator(cpu *c)
-{
-	uint8_t val = c->accumulator >> 1;
-	if (checkCarry(c->flags)) val |= 0x80;
-	else val &= ~0x80;
-	if (c->accumulator & 0x1) setCarry(&c->flags);
-	else clearCarry(&c->flags);
-	loadRegister(c, &c->accumulator, val);
-	c->tick = 0xff;
-}
-void rolAccumulator(cpu *c)
-{
-	uint8_t val = c->accumulator << 1;
-	if (checkCarry(c->flags)) val |= 0x1;
-	else val &= ~0x1;
-	if (c->accumulator & 0x80) setCarry(&c->flags);
-	else clearCarry(&c->flags);
-	loadRegister(c, &c->accumulator, val);
-	c->tick = 0xff;
-}
-void lsrMemory(cpu *c)
-{
-	if (c->temp & 0x1) setCarry(&c->flags);
-	else clearCarry(&c->flags);
-	writeValue(c, c->ad, c->temp >> 1);
-	c->tick = 0xff;
-}
-void aslMemory(cpu *c)
-{
-	if (c->temp & 0x80) setCarry(&c->flags);
-	else clearCarry(&c->flags);
-	writeValue(c, c->ad, c->temp << 1);
-	c->tick = 0xff;
-}
-void rorMemory(cpu *c)
-{
-	uint8_t val = c->temp >> 1;
-	if (checkCarry(c->flags)) val |= 0x80;
-	else val &= ~0x80;
-	if (c->temp & 0x1) setCarry(&c->flags);
-	else clearCarry(&c->flags);
-	writeValue(c, c->ad, val);
-	c->tick = 0xff;
-}
-void rolMemory(cpu *c)
-{
-	uint8_t val = c->temp << 1;
-	if (checkCarry(c->flags)) val |= 0x1;
-	else val &= ~0x1;
-	if (c->temp & 0x80) setCarry(&c->flags);
-	else clearCarry(&c->flags);
-	writeValue(c, c->ad, val);
 	c->tick = 0xff;
 }
 void dcp(cpu *c)
@@ -1099,6 +1194,16 @@ cpu *cpu_create()
 
 	newCPU->ops[0x9d][3] = writeAbsX;
 
+	newCPU->ops[0x9c][1] = fetchADL;
+	newCPU->ops[0x9c][2] = fetchADH;
+	newCPU->ops[0x9c][3] = writeAbsX;
+	newCPU->ops[0x9c][4] = sya;
+
+	newCPU->ops[0x9e][1] = fetchADL;
+	newCPU->ops[0x9e][2] = fetchADH;
+	newCPU->ops[0x9e][3] = writeAbsY;
+	newCPU->ops[0x9e][4] = sxa;
+
 	newCPU->ops[0xbe][3] = readAbsY;
 	newCPU->ops[0xbf][3] = readAbsY;
 
@@ -1348,9 +1453,11 @@ cpu *cpu_create()
 	newCPU->ops[0xea][1] = nop;
 	newCPU->ops[0xfa][1] = nop;
 
-	newCPU->ops[0x80][1] = nop;
-	newCPU->ops[0x82][1] = nop;
-	newCPU->ops[0x89][1] = nop;
+	newCPU->ops[0x80][1] = dop;
+	newCPU->ops[0x82][1] = dop;
+	newCPU->ops[0x89][1] = dop;
+	newCPU->ops[0xc2][1] = dop;
+	newCPU->ops[0xe2][1] = dop;
 	newCPU->ops[0x04][2] = nop;
 	newCPU->ops[0x44][2] = nop;
 	newCPU->ops[0x64][2] = nop;
@@ -1367,6 +1474,12 @@ cpu *cpu_create()
 	newCPU->ops[0xa2][1] = ldxImmediate;
 	newCPU->ops[0x09][1] = oraImmediate;
 	newCPU->ops[0x29][1] = andImmediate;
+	newCPU->ops[0x0b][1] = ancImmediate;
+	newCPU->ops[0x2b][1] = ancImmediate;
+	newCPU->ops[0x4b][1] = alrImmediate;
+	newCPU->ops[0x6b][1] = arrImmediate;
+	newCPU->ops[0xab][1] = atx;
+	newCPU->ops[0xcb][1] = axs;
 	newCPU->ops[0x49][1] = eorImmediate;
 	newCPU->ops[0x69][1] = adcImmediate;
 	newCPU->ops[0xa9][1] = ldaImmediate;
