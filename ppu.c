@@ -55,6 +55,8 @@ struct ppu
     bool background_en;
     bool sprite_en;
     bool rendering_en;
+    bool bg_clip;
+    bool sprite_clip;
     bool vblank;
 	bool nmi;
     bool nmi_occurred;
@@ -225,40 +227,45 @@ uint8_t flipByte(uint8_t data)
 uint16_t calcPixel(ppu *p)
 {
     uint8_t bg_palette = 0;
-    if (p->pattern_shift_low & (0x8000 >> p->fine_x)) bg_palette |= 1;
-    if (p->pattern_shift_high & (0x8000 >> p->fine_x)) bg_palette |= 2;
-    if (bg_palette > 0)
+    if (p->background_en && !(p->bg_clip && p->dot <= 8)) 
     {
-        if (p->attr_shift_low & (0x80 >> p->fine_x)) bg_palette |= 4;
-        if (p->attr_shift_high & (0x80 >> p->fine_x)) bg_palette |= 8;
-    }
-
-    uint8_t sprite_palette = 0x10;
-    for (int i = p->sprites_on_line - 1; i >= 0; i--)
-    {
-        if (p->sprite_counter[i] == 0)
+        if (p->pattern_shift_low & (0x8000 >> p->fine_x)) bg_palette |= 1;
+        if (p->pattern_shift_high & (0x8000 >> p->fine_x)) bg_palette |= 2;
+        if (bg_palette > 0)
         {
-            uint8_t pattern = 0;
-            if (p->sprite_shift_low[i] & 0x80) pattern |= 1;
-            if (p->sprite_shift_high[i] & 0x80) pattern |= 2;
-            if (pattern > 0)
+            if (p->attr_shift_low & (0x80 >> p->fine_x)) bg_palette |= 4;
+            if (p->attr_shift_high & (0x80 >> p->fine_x)) bg_palette |= 8;
+        }
+    }
+    if (p->sprite_en && !(p->sprite_clip && p->dot <= 8))
+    {
+        uint8_t sprite_palette = 0x10;
+        for (int i = p->sprites_on_line - 1; i >= 0; i--)
+        {
+            if (p->sprite_counter[i] == 0)
             {
-                sprite_palette = 0x10;
-                sprite_palette |= pattern;
-                if (p->sprite_latch_low[i]) sprite_palette |= 4;
-                if (p->sprite_latch_high[i]) sprite_palette |= 8;
-                if (bg_palette > 0)
+                uint8_t pattern = 0;
+                if (p->sprite_shift_low[i] & 0x80) pattern |= 1;
+                if (p->sprite_shift_high[i] & 0x80) pattern |= 2;
+                if (pattern > 0)
                 {
-                    if (i == 0 && p->sprite0_this_line)
-                        p->PPUSTATUS |= 0x40;
-                    if (p->sprite_priority[i])
-                        sprite_palette = 0x10;
+                    sprite_palette = 0x10;
+                    sprite_palette |= pattern;
+                    if (p->sprite_latch_low[i]) sprite_palette |= 4;
+                    if (p->sprite_latch_high[i]) sprite_palette |= 8;
+                    if (bg_palette > 0)
+                    {
+                        if (i == 0 && p->sprite0_this_line && p->dot <= 255)
+                            p->PPUSTATUS |= 0x40;
+                        if (p->sprite_priority[i])
+                            sprite_palette = 0x10;
+                    }
                 }
             }
         }
+        if (sprite_palette > 0x10)
+            bg_palette = sprite_palette;
     }
-    if (sprite_palette > 0x10)
-        bg_palette = sprite_palette;
     return p->palette[bg_palette];
 }
 
@@ -300,6 +307,8 @@ void checkRegisters(ppu *p)
                 break;
 
             case PPUMASK:
+                p->bg_clip = (p->PPUMASK & 0x2) ? false : true;
+                p->sprite_clip = (p->PPUMASK & 0x4) ? false : true;
                 p->background_en = (p->PPUMASK & 0x8);
                 p->sprite_en = (p->PPUMASK & 0x10);
                 p->rendering_en = p->sprite_en || p->background_en;
