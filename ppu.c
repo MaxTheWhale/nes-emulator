@@ -237,7 +237,7 @@ uint16_t calcPixel(ppu *p)
             if (p->attr_shift_high & (0x80 >> p->fine_x)) bg_palette |= 8;
         }
     }
-    if (p->sprite_en && !(p->sprite_clip && p->dot <= 8))
+    if (p->sprite_en && !(p->sprite_clip && p->dot <= 8) && p->scanline > 0)
     {
         uint8_t sprite_palette = 0x10;
         for (int i = p->sprites_on_line - 1; i >= 0; i--)
@@ -543,7 +543,7 @@ void sprite_evaluation(ppu *p)
             case 2:
                 p->eval_m = 0;
                 p->eval_n++;
-                p->eval_temp = p->oam[p->eval_n*4 + p->eval_m];
+                p->eval_temp = p->oam[p->eval_n*4];
                 if (p->eval_n == 0)
                     p->eval_stage = 4;
                 else if (p->eval_sn < 8)
@@ -573,7 +573,7 @@ void sprite_evaluation(ppu *p)
             switch (p->eval_stage)
             {
             case 0:
-                p->secondary_oam[p->eval_sn*4 + p->eval_m] = p->eval_temp;
+                p->secondary_oam[p->eval_sn*4] = p->eval_temp;
                 if (p->eval_temp+7 >= p->scanline && p->eval_temp <= p->scanline)
                     p->eval_stage = 1;
                 else
