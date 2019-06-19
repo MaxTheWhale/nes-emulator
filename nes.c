@@ -5,7 +5,8 @@
 FILE *fopenCheck(char *file, char *mode)
 {
     FILE *p = fopen(file, mode);
-    if (p != NULL) return p;
+    if (p != NULL)
+        return p;
     fprintf(stderr, "Can't open %s: ", file);
     fflush(stderr);
     perror("");
@@ -18,8 +19,8 @@ void mapCPU_PPU(nes *n)
     {
         for (int j = 0; j < 0x800; j++)
         {
-            cpu_mapMemory(n->cpu, (i*0x800) + j, n->ram + j, false);
-            cpu_mapMemory(n->cpu, (i*0x800) + j, n->ram + j, true);
+            cpu_mapMemory(n->cpu, (i * 0x800) + j, n->ram + j, false);
+            cpu_mapMemory(n->cpu, (i * 0x800) + j, n->ram + j, true);
         }
     }
     cpu_mapNMI(n->cpu, ppu_getNMI(n->ppu));
@@ -54,35 +55,35 @@ void nes_loadROM(nes *n, char *rom)
     FILE *f = fopenCheck(rom, "rb");
     uint8_t header[16];
 
-	fread(header, 16, 1, f);
-	if (header[4] == 1)
-	{
-		uint8_t *prg = malloc(0x4000);
-		fread(prg, 0x1000, 4, f);
-		for (int i = 0; i < 0x4000; i++)
-		{
-			cpu_mapMemory(n->cpu, 0x8000 + i, prg + i, false);
+    fread(header, 16, 1, f);
+    if (header[4] == 1)
+    {
+        uint8_t *prg = malloc(0x4000);
+        fread(prg, 0x1000, 4, f);
+        for (int i = 0; i < 0x4000; i++)
+        {
+            cpu_mapMemory(n->cpu, 0x8000 + i, prg + i, false);
             cpu_mapMemory(n->cpu, 0xc000 + i, prg + i, false);
-		}
-	}
-    else if (header[4] == 2)
-	{
-		uint8_t *prg = malloc(0x8000);
-		fread(prg, 0x1000, 8, f);
-		for (int i = 0; i < 0x8000; i++)
-		{
-			cpu_mapMemory(n->cpu, 0x8000 + i, prg + i, false);
-		}
-	}
-    if (header[5] == 1)
-	{
-		uint8_t *chr = malloc(0x2000);
-		fread(chr, 0x1000, 2, f);
-		for (int i = 0; i < 0x2000; i++)
-		{
-			ppu_mapMemory(n->ppu, 0x0000 + i, chr + i);
         }
-	}
+    }
+    else if (header[4] == 2)
+    {
+        uint8_t *prg = malloc(0x8000);
+        fread(prg, 0x1000, 8, f);
+        for (int i = 0; i < 0x8000; i++)
+        {
+            cpu_mapMemory(n->cpu, 0x8000 + i, prg + i, false);
+        }
+    }
+    if (header[5] == 1)
+    {
+        uint8_t *chr = malloc(0x2000);
+        fread(chr, 0x1000, 2, f);
+        for (int i = 0; i < 0x2000; i++)
+        {
+            ppu_mapMemory(n->ppu, 0x0000 + i, chr + i);
+        }
+    }
     if (header[6] & 0x1)
     {
         for (int i = 0; i < 0x800; i++)
@@ -97,11 +98,11 @@ void nes_loadROM(nes *n, char *rom)
         {
             ppu_mapMemory(n->ppu, 0x2000 + i, &n->vram[i]);
             ppu_mapMemory(n->ppu, 0x2400 + i, &n->vram[i]);
-            ppu_mapMemory(n->ppu, 0x2800 + i, &n->vram[0x400+i]);
-            ppu_mapMemory(n->ppu, 0x2c00 + i, &n->vram[0x400+i]);
+            ppu_mapMemory(n->ppu, 0x2800 + i, &n->vram[0x400 + i]);
+            ppu_mapMemory(n->ppu, 0x2c00 + i, &n->vram[0x400 + i]);
         }
     }
-	fclose(f);
+    fclose(f);
 }
 
 void nes_setFramebuffer(nes *n, uint32_t *framebuffer)
@@ -117,16 +118,16 @@ void nes_updatePadState(nes *n, uint8_t state)
 void nes_loadPalette(nes *n, char *palette)
 {
     FILE *f = fopenCheck(palette, "rb");
-    uint8_t data[64*3];
+    uint8_t data[64 * 3];
 
-	fread(data, 64, 3, f);
+    fread(data, 64, 3, f);
 
     for (int i = 0; i < 64; i++)
     {
         uint32_t colour = 0;
-        colour |= (data[i*3] << 16);
-        colour |= (data[i*3+1] << 8);
-        colour |= data[i*3+2];
+        colour |= (data[i * 3] << 16);
+        colour |= (data[i * 3 + 1] << 8);
+        colour |= data[i * 3 + 2];
         n->palette[i] = colour;
     }
     for (int i = 1; i < 8; i++)
@@ -139,7 +140,7 @@ void nes_loadPalette(nes *n, char *palette)
     fclose(f);
 }
 
-bool nes_stepCycle(nes* n)
+bool nes_stepCycle(nes *n)
 {
     bool finished_frame = false;
     if (n->dma)
@@ -155,7 +156,8 @@ bool nes_stepCycle(nes* n)
         }
         n->dma_count++;
     }
-    else cpu_executeCycle(n->cpu);
+    else
+        cpu_executeCycle(n->cpu);
     if ((*n->address & 0xe000) == 0x2000)
     {
         n->reg_access = true;
@@ -195,9 +197,10 @@ bool nes_stepCycle(nes* n)
     return finished_frame;
 }
 
-void nes_emulateFrame(nes* n)
+void nes_emulateFrame(nes *n)
 {
-    while (!nes_stepCycle(n));
+    while (!nes_stepCycle(n))
+        ;
 }
 
 nes *nes_create()

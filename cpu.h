@@ -3,7 +3,7 @@
 
 struct cpu;
 typedef struct cpu cpu;
-typedef void (*opPtr)(cpu*);
+typedef void (*opPtr)(cpu *);
 
 cpu *cpu_create();
 void cpu_reset(cpu *c);
@@ -15,5 +15,5 @@ uint8_t cpu_readMemory(cpu *c, uint16_t address);
 void cpu_writeMemory(cpu *c, uint16_t address, uint8_t value);
 void cpu_mapNMI(cpu *c, bool *pointer);
 void cpu_mapIRQ(cpu *c, bool *pointer);
-bool* cpu_getRW(cpu *c);
-uint16_t* cpu_getAddress(cpu *c);
+bool *cpu_getRW(cpu *c);
+uint16_t *cpu_getAddress(cpu *c);

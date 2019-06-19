@@ -2,19 +2,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-enum { PPUCTRL, PPUMASK, PPUSTATUS, OAMADDR, OAMDATA, PPUSCROLL, PPUADDR, PPUDATA };
-enum { FINE_Y      = 0x7000, 
-       NAMETABLE   = 0x0c00,
-       NAMETABLE_Y = 0x0800,
-       NAMETABLE_X = 0x0400,
-       COARSE_Y    = 0x03e0,
-       COARSE_X    = 0x001f,
-       ATTR_Y      = 0x0380,
-       ATTR_X      = 0x001c };
+enum
+{
+    PPUCTRL,
+    PPUMASK,
+    PPUSTATUS,
+    OAMADDR,
+    OAMDATA,
+    PPUSCROLL,
+    PPUADDR,
+    PPUDATA
+};
+enum
+{
+    FINE_Y = 0x7000,
+    NAMETABLE = 0x0c00,
+    NAMETABLE_Y = 0x0800,
+    NAMETABLE_X = 0x0400,
+    COARSE_Y = 0x03e0,
+    COARSE_X = 0x001f,
+    ATTR_Y = 0x0380,
+    ATTR_X = 0x001c
+};
 
 struct ppu
 {
-	uint16_t *cpu_address;
+    uint16_t *cpu_address;
     uint16_t ppu_address;
     uint16_t address_v;
     uint16_t address_temp;
@@ -46,7 +59,7 @@ struct ppu
     bool sprite_latch_low[8];
     bool sprite_latch_high[8];
     bool sprite_priority[8];
-	bool *write;
+    bool *write;
     bool write_prev;
     bool *reg_access;
     bool reg_access_prev;
@@ -58,7 +71,7 @@ struct ppu
     bool bg_clip;
     bool sprite_clip;
     bool vblank;
-	bool nmi;
+    bool nmi;
     bool nmi_occurred;
     bool odd_frame;
     bool write_latch;
@@ -83,7 +96,7 @@ struct ppu
     uint8_t *memory[0x4000];
 };
 
-ppu* ppu_create()
+ppu *ppu_create()
 {
     ppu *newPPU = malloc(sizeof(ppu));
     newPPU->PPUSTATUS = 0;
@@ -100,7 +113,7 @@ ppu* ppu_create()
     }
     for (int i = 0; i < 0x40; i++)
     {
-        newPPU->memory[0x3f00 + (i*4)] = newPPU->memory[0x3f00 + ((i*4) & ~0x10)];
+        newPPU->memory[0x3f00 + (i * 4)] = newPPU->memory[0x3f00 + ((i * 4) & ~0x10)];
     }
     return newPPU;
 }
@@ -122,47 +135,47 @@ void ppu_mapAddress(ppu *p, uint16_t *pointer)
 {
     p->cpu_address = pointer;
 }
-bool* ppu_getNMI(ppu *p)
+bool *ppu_getNMI(ppu *p)
 {
     return &(p->nmi);
 }
-uint16_t* ppu_getDot(ppu *p)
+uint16_t *ppu_getDot(ppu *p)
 {
     return &(p->dot);
 }
-uint16_t* ppu_getScanline(ppu *p)
+uint16_t *ppu_getScanline(ppu *p)
 {
     return &(p->scanline);
 }
-uint8_t* ppu_getPPUCTRL(ppu *p)
+uint8_t *ppu_getPPUCTRL(ppu *p)
 {
     return &(p->PPUCTRL);
 }
-uint8_t* ppu_getPPUMASK(ppu *p)
+uint8_t *ppu_getPPUMASK(ppu *p)
 {
     return &(p->PPUMASK);
 }
-uint8_t* ppu_getPPUSTATUS(ppu *p)
+uint8_t *ppu_getPPUSTATUS(ppu *p)
 {
     return &(p->PPUSTATUS);
 }
-uint8_t* ppu_getOAMADDR(ppu *p)
+uint8_t *ppu_getOAMADDR(ppu *p)
 {
     return &(p->OAMADDR);
 }
-uint8_t* ppu_getOAMDATA(ppu *p)
+uint8_t *ppu_getOAMDATA(ppu *p)
 {
     return &(p->OAMDATA);
 }
-uint8_t* ppu_getPPUSCROLL(ppu *p)
+uint8_t *ppu_getPPUSCROLL(ppu *p)
 {
     return &(p->PPUSCROLL);
 }
-uint8_t* ppu_getPPUADDR(ppu *p)
+uint8_t *ppu_getPPUADDR(ppu *p)
 {
     return &(p->PPUADDR);
 }
-uint8_t* ppu_getPPUDATA(ppu *p)
+uint8_t *ppu_getPPUDATA(ppu *p)
 {
     return &(p->PPUDATA);
 }
@@ -202,9 +215,9 @@ uint16_t getSpriteAddr(ppu *p)
 {
     uint16_t result = 0;
     result += p->sprite_base;
-    result |= (p->secondary_oam[p->eval_sn*4 + 1] << 4);
-    uint8_t y_offset = (uint8_t)(p->scanline - p->secondary_oam[p->eval_sn*4]);
-    if (p->secondary_oam[p->eval_sn*4 + 2] & 0x80)
+    result |= (p->secondary_oam[p->eval_sn * 4 + 1] << 4);
+    uint8_t y_offset = (uint8_t)(p->scanline - p->secondary_oam[p->eval_sn * 4]);
+    if (p->secondary_oam[p->eval_sn * 4 + 2] & 0x80)
         y_offset = 7 - y_offset;
     result |= y_offset;
     return result;
@@ -213,28 +226,40 @@ uint16_t getSpriteAddr(ppu *p)
 uint8_t flipByte(uint8_t data)
 {
     uint8_t new = 0;
-    if (data & 0x80) new |= 0x1;
-    if (data & 0x40) new |= 0x2;
-    if (data & 0x20) new |= 0x4;
-    if (data & 0x10) new |= 0x8;
-    if (data & 0x8) new |= 0x10;
-    if (data & 0x4) new |= 0x20;
-    if (data & 0x2) new |= 0x40;
-    if (data & 0x1) new |= 0x80;
+    if (data & 0x80)
+        new |= 0x1;
+    if (data & 0x40)
+        new |= 0x2;
+    if (data & 0x20)
+        new |= 0x4;
+    if (data & 0x10)
+        new |= 0x8;
+    if (data & 0x8)
+        new |= 0x10;
+    if (data & 0x4)
+        new |= 0x20;
+    if (data & 0x2)
+        new |= 0x40;
+    if (data & 0x1)
+        new |= 0x80;
     return new;
 }
 
 uint16_t calcPixel(ppu *p)
 {
     uint8_t bg_palette = 0;
-    if (p->background_en && !(p->bg_clip && p->dot <= 8)) 
+    if (p->background_en && !(p->bg_clip && p->dot <= 8))
     {
-        if (p->pattern_shift_low & (0x8000 >> p->fine_x)) bg_palette |= 1;
-        if (p->pattern_shift_high & (0x8000 >> p->fine_x)) bg_palette |= 2;
+        if (p->pattern_shift_low & (0x8000 >> p->fine_x))
+            bg_palette |= 1;
+        if (p->pattern_shift_high & (0x8000 >> p->fine_x))
+            bg_palette |= 2;
         if (bg_palette > 0)
         {
-            if (p->attr_shift_low & (0x80 >> p->fine_x)) bg_palette |= 4;
-            if (p->attr_shift_high & (0x80 >> p->fine_x)) bg_palette |= 8;
+            if (p->attr_shift_low & (0x80 >> p->fine_x))
+                bg_palette |= 4;
+            if (p->attr_shift_high & (0x80 >> p->fine_x))
+                bg_palette |= 8;
         }
     }
     if (p->sprite_en && !(p->sprite_clip && p->dot <= 8) && p->scanline > 0)
@@ -245,14 +270,18 @@ uint16_t calcPixel(ppu *p)
             if (p->sprite_counter[i] == 0)
             {
                 uint8_t pattern = 0;
-                if (p->sprite_shift_low[i] & 0x80) pattern |= 1;
-                if (p->sprite_shift_high[i] & 0x80) pattern |= 2;
+                if (p->sprite_shift_low[i] & 0x80)
+                    pattern |= 1;
+                if (p->sprite_shift_high[i] & 0x80)
+                    pattern |= 2;
                 if (pattern > 0)
                 {
                     sprite_palette = 0x10;
                     sprite_palette |= pattern;
-                    if (p->sprite_latch_low[i]) sprite_palette |= 4;
-                    if (p->sprite_latch_high[i]) sprite_palette |= 8;
+                    if (p->sprite_latch_low[i])
+                        sprite_palette |= 4;
+                    if (p->sprite_latch_high[i])
+                        sprite_palette |= 8;
                     if (bg_palette > 0)
                     {
                         if (i == 0 && p->sprite0_this_line && p->dot <= 255)
@@ -327,7 +356,7 @@ void checkRegisters(ppu *p)
                     p->address_temp |= ((p->PPUSCROLL & 0xf8) << 2);
                     p->write_latch = false;
                 }
-                else 
+                else
                 {
                     p->address_temp &= ~COARSE_X;
                     p->address_temp |= (p->PPUSCROLL >> 3);
@@ -346,7 +375,7 @@ void checkRegisters(ppu *p)
                         p->PPUDATA = readMemory(p, p->address_v);
                     p->write_latch = false;
                 }
-                else 
+                else
                 {
                     p->address_temp &= 0x00ff;
                     p->address_temp |= (p->PPUADDR & 0x3f) << 8;
@@ -409,20 +438,20 @@ void perform_sprite_fetches(ppu *p)
         break;
     case 4:
         p->current_attr = readMemory(p, getAttributeAddr(p->address_v));
-        p->sprite_latch_low[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 1) ? true : false;
-        p->sprite_latch_high[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 2) ? true : false;
-        p->sprite_priority[p->eval_sn] = (p->secondary_oam[p->eval_sn*4 + 2] & 0x20) ? true : false;
-        p->sprite_counter[p->eval_sn] = p->secondary_oam[p->eval_sn*4 + 3];
+        p->sprite_latch_low[p->eval_sn] = (p->secondary_oam[p->eval_sn * 4 + 2] & 1) ? true : false;
+        p->sprite_latch_high[p->eval_sn] = (p->secondary_oam[p->eval_sn * 4 + 2] & 2) ? true : false;
+        p->sprite_priority[p->eval_sn] = (p->secondary_oam[p->eval_sn * 4 + 2] & 0x20) ? true : false;
+        p->sprite_counter[p->eval_sn] = p->secondary_oam[p->eval_sn * 4 + 3];
         p->sprite_offset[p->eval_sn] = 0;
         break;
     case 6:
         p->sprite_shift_low[p->eval_sn] = (p->eval_sn < p->sprites_on_line) ? readMemory(p, getSpriteAddr(p)) : 0;
-        if (p->secondary_oam[p->eval_sn*4 + 2] & 0x40)
+        if (p->secondary_oam[p->eval_sn * 4 + 2] & 0x40)
             p->sprite_shift_low[p->eval_sn] = flipByte(p->sprite_shift_low[p->eval_sn]);
         break;
     case 0:
         p->sprite_shift_high[p->eval_sn] = (p->eval_sn < p->sprites_on_line) ? readMemory(p, getSpriteAddr(p) + 8) : 0;
-        if (p->secondary_oam[p->eval_sn*4 + 2] & 0x40)
+        if (p->secondary_oam[p->eval_sn * 4 + 2] & 0x40)
             p->sprite_shift_high[p->eval_sn] = flipByte(p->sprite_shift_high[p->eval_sn]);
         p->eval_sn++;
         break;
@@ -435,8 +464,10 @@ void update_shift_registers(ppu *p)
     p->pattern_shift_high <<= 1;
     p->attr_shift_low <<= 1;
     p->attr_shift_high <<= 1;
-    if (p->attr_latch_low) p->attr_shift_low++;
-    if (p->attr_latch_high) p->attr_shift_high++;
+    if (p->attr_latch_low)
+        p->attr_shift_low++;
+    if (p->attr_latch_high)
+        p->attr_shift_high++;
 
     if (p->dot <= 257)
     {
@@ -466,8 +497,10 @@ void update_shift_registers(ppu *p)
         p->pattern_shift_high |= p->current_pattern_high;
 
         uint8_t attr = p->current_attr;
-        if ((p->address_v - 1) & 0x02) attr >>= 2;
-        if (p->address_v & 0x40) attr >>= 4;
+        if ((p->address_v - 1) & 0x02)
+            attr >>= 2;
+        if (p->address_v & 0x40)
+            attr >>= 4;
         p->attr_latch_low = (attr & 1) ? true : false;
         p->attr_latch_high = (attr & 2) ? true : false;
     }
@@ -489,7 +522,7 @@ void increment_horizontal_v(ppu *p)
 void increment_vertical_v(ppu *p)
 {
     if ((p->address_v & FINE_Y) < 0x7000)
-    {     
+    {
         p->address_v += 0x1000;
     }
     else
@@ -500,7 +533,7 @@ void increment_vertical_v(ppu *p)
         {
             y = 0;
             p->address_v ^= NAMETABLE_Y;
-        }                 
+        }
         else if (y == 31)
         {
             y = 0;
@@ -525,7 +558,7 @@ void sprite_evaluation(ppu *p)
     }
     if (p->dot >= 1 && p->dot <= 64)
     {
-        p->secondary_oam[(p->dot-1) / 2] = 0xff;
+        p->secondary_oam[(p->dot - 1) / 2] = 0xff;
     }
     if (p->dot >= 65 && p->dot <= 256)
     {
@@ -534,16 +567,16 @@ void sprite_evaluation(ppu *p)
             switch (p->eval_stage)
             {
             case 0:
-                p->eval_temp = p->oam[p->eval_n*4 + p->eval_m];
+                p->eval_temp = p->oam[p->eval_n * 4 + p->eval_m];
                 break;
             case 1:
                 p->eval_m++;
-                p->eval_temp = p->oam[p->eval_n*4 + p->eval_m];
+                p->eval_temp = p->oam[p->eval_n * 4 + p->eval_m];
                 break;
             case 2:
                 p->eval_m = 0;
                 p->eval_n++;
-                p->eval_temp = p->oam[p->eval_n*4];
+                p->eval_temp = p->oam[p->eval_n * 4];
                 if (p->eval_n == 0)
                     p->eval_stage = 4;
                 else if (p->eval_sn < 8)
@@ -552,8 +585,8 @@ void sprite_evaluation(ppu *p)
                     p->eval_stage = 3;
                 break;
             case 3:
-                p->eval_temp = p->oam[p->eval_n*4 + p->eval_m];
-                if (p->eval_temp+7 >= p->scanline && p->eval_temp <= p->scanline)
+                p->eval_temp = p->oam[p->eval_n * 4 + p->eval_m];
+                if (p->eval_temp + 7 >= p->scanline && p->eval_temp <= p->scanline)
                     p->PPUSTATUS &= ~0x40;
                 else
                 {
@@ -563,7 +596,7 @@ void sprite_evaluation(ppu *p)
                 }
                 break;
             case 4:
-                p->eval_temp = p->oam[p->eval_n*4];
+                p->eval_temp = p->oam[p->eval_n * 4];
                 p->eval_n++;
                 break;
             }
@@ -573,14 +606,14 @@ void sprite_evaluation(ppu *p)
             switch (p->eval_stage)
             {
             case 0:
-                p->secondary_oam[p->eval_sn*4] = p->eval_temp;
-                if (p->eval_temp+7 >= p->scanline && p->eval_temp <= p->scanline)
+                p->secondary_oam[p->eval_sn * 4] = p->eval_temp;
+                if (p->eval_temp + 7 >= p->scanline && p->eval_temp <= p->scanline)
                     p->eval_stage = 1;
                 else
                     p->eval_stage = 2;
                 break;
             case 1:
-                p->secondary_oam[p->eval_sn*4 + p->eval_m] = p->eval_temp;
+                p->secondary_oam[p->eval_sn * 4 + p->eval_m] = p->eval_temp;
                 if (p->eval_m == 3)
                 {
                     p->eval_stage = 2;
@@ -658,7 +691,7 @@ uint16_t ppu_executeCycle(ppu *p)
         if (p->dot <= 256 && p->scanline < 240)
         {
             sprite_evaluation(p);
-        }  
+        }
         if (p->dot == 256)
         {
             p->sprites_on_line = p->eval_sn;
@@ -684,4 +717,3 @@ uint16_t ppu_executeCycle(ppu *p)
 
     return (p->dot < 257 && p->dot > 0 && p->scanline < 240) ? calcPixel(p) : 0xffff;
 }
-
