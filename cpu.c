@@ -43,6 +43,10 @@ enum { CARRY       = 0x01,
        OVERFLOW    = 0x40,
        NEGATIVE    = 0x80 };
 
+// Addressing modes
+enum AddressMode_t { IMPLIED, ACCUMULATOR, RELATIVE, IMMEDIATE, ABSOLUTE, ZEROPAGE, ZEROPAGE_X, ZEROPAGE_Y, ABSOLUTE_X, ABSOLUTE_Y, INDIRECT_X, INDIRECT_Y };
+enum InstructionMode_t { READ_OP, WRITE_OP, RMW_OP, RMW_READ_OP, OTHER_OP };
+
 struct cpu
 {
     // External signals
@@ -72,7 +76,7 @@ struct cpu
     bool nmi_executing;
     bool nmi_starting;
 
-    opPtr ops[256][8];
+    opPtr ops[256][10];
 
     uint8_t *memory_read[0x10000];
     uint8_t *memory_write[0x10000];
@@ -95,6 +99,7 @@ void cpu_writeMemory(cpu *c, uint16_t address, uint8_t value)
 void fetchOp(cpu *c)
 {
     c->currentOp = cpu_readMemory(c, c->pc);
+    c->tick = 0;
     if (c->nmi_pending)
     {
         c->currentOp = 0;
@@ -141,7 +146,6 @@ void fetchPCHbrk(cpu *c)
     }
     else
         *c->pcH = cpu_readMemory(c, 0xffff);
-    c->tick = 0xff;
 }
 
 void fetchPCLbrk(cpu *c)
@@ -305,7 +309,6 @@ void rtiPullPCH(cpu *c)
         c->nmi_executing = false;
         c->nmi_pending = false;
     }
-    c->tick = 0xff;
 }
 void pullFlags(cpu *c)
 {
@@ -315,7 +318,6 @@ void pullFlags(cpu *c)
 void incPC(cpu *c)
 {
     c->pc++;
-    c->tick = 0xff;
 }
 
 void fetchValue(cpu *c)
@@ -334,40 +336,60 @@ void readStack(cpu *c)
     c->temp = cpu_readMemory(c, 0x100 + c->stackPointer);
 }
 
+void immediateOp(cpu *c)
+{
+    fetchValue(c);
+    c->ops[c->currentOp][++c->tick](c);
+}
+void memoryOp(cpu *c)
+{
+    c->temp = cpu_readMemory(c, c->ad);
+    c->ops[c->currentOp][++c->tick](c);
+}
+void writeOp(cpu *c)
+{
+    c->ops[c->currentOp][++c->tick](c);
+    writeValue(c, c->ad, c->temp); 
+}
+void rmwReadOp(cpu *c)
+{
+    c->ops[c->currentOp][++c->tick](c);
+}
+void accumulatorOp(cpu *c)
+{
+    c->temp = c->accumulator;
+    c->ops[c->currentOp][++c->tick](c);
+    loadRegister(c, &c->accumulator, c->temp);
+}
+
 void jmp(cpu *c)
 {
     *c->pcH = cpu_readMemory(c, c->pc);
     *c->pcL = *c->adL;
-    c->tick = 0xff;
 }
 void jmpIndirect(cpu *c)
 {
     (*c->adL)++;
     *c->pcH = cpu_readMemory(c, c->ad);
     *c->pcL = c->temp;
-    c->tick = 0xff;
 }
 void pla(cpu *c)
 {
     loadRegister(c, &c->accumulator, cpu_readMemory(c, 0x100 + c->stackPointer));
-    c->tick = 0xff;
 }
 void plp(cpu *c)
 {
     c->flags = cpu_readMemory(c, 0x100 + c->stackPointer);
-    c->tick = 0xff;
 }
 void pha(cpu *c)
 {
     cpu_writeMemory(c, 0x100 + c->stackPointer, c->accumulator);
     c->stackPointer--;
-    c->tick = 0xff;
 }
 void php(cpu *c)
 {
     cpu_writeMemory(c, 0x100 + c->stackPointer, c->flags | 0x30);
-    c->stackPointer--;
-    c->tick = 0xff;
+    c->stackPointer--; 
 }
 void ins(cpu *c)
 {
@@ -376,151 +398,81 @@ void ins(cpu *c)
 void nop(cpu *c)
 {
     c->temp = cpu_readMemory(c, c->pc);
-    c->tick = 0xff;
 }
 void dop(cpu *c)
 {
     c->temp = cpu_readMemory(c, c->pc);
     c->pc++;
-    c->tick = 0xff;
 }
-
 void tax(cpu *c)
 {
     loadRegister(c, &c->x, c->accumulator);
-    c->tick = 0xff;
 }
-
 void tay(cpu *c)
 {
     loadRegister(c, &c->y, c->accumulator);
-    c->tick = 0xff;
 }
-
 void tsx(cpu *c)
 {
     loadRegister(c, &c->x, c->stackPointer);
-    c->tick = 0xff;
 }
-
 void txa(cpu *c)
 {
     loadRegister(c, &c->accumulator, c->x);
-    c->tick = 0xff;
 }
-
 void txs(cpu *c)
 {
     c->stackPointer = c->x;
-    c->tick = 0xff;
 }
-
 void tya(cpu *c)
 {
     loadRegister(c, &c->accumulator, c->y);
-    c->tick = 0xff;
 }
-
 void sec(cpu *c)
 {
     c->flags |= CARRY;
-    c->tick = 0xff;
 }
 void sei(cpu *c)
 {
     c->flags |= IRQ_DISABLE;
-    c->tick = 0xff;
 }
 void sed(cpu *c)
 {
     c->flags |= DECIMAL;
-    c->tick = 0xff;
 }
 void clc(cpu *c)
 {
     c->flags &= ~CARRY;
-    c->tick = 0xff;
 }
 void cli(cpu *c)
 {
     c->flags &= ~IRQ_DISABLE;
-    c->tick = 0xff;
 }
 void cld(cpu *c)
 {
     c->flags &= ~DECIMAL;
-    c->tick = 0xff;
 }
 void clv(cpu *c)
 {
     c->flags &= ~OVERFLOW;
-    c->tick = 0xff;
 }
-void lsrAccumulator(cpu *c)
-{
-    if (c->accumulator & 0x1)
-        c->flags |= CARRY;
-    else
-        c->flags &= ~CARRY;
-    loadRegister(c, &c->accumulator, c->accumulator >> 1);
-    c->tick = 0xff;
-}
-void aslAccumulator(cpu *c)
-{
-    if (c->accumulator & 0x80)
-        c->flags |= CARRY;
-    else
-        c->flags &= ~CARRY;
-    loadRegister(c, &c->accumulator, c->accumulator << 1);
-    c->tick = 0xff;
-}
-void rorAccumulator(cpu *c)
-{
-    uint8_t val = c->accumulator >> 1;
-    if (c->flags & CARRY)
-        val |= 0x80;
-    else
-        val &= ~0x80;
-    if (c->accumulator & 0x1)
-        c->flags |= CARRY;
-    else
-        c->flags &= ~CARRY;
-    loadRegister(c, &c->accumulator, val);
-    c->tick = 0xff;
-}
-void rolAccumulator(cpu *c)
-{
-    uint8_t val = c->accumulator << 1;
-    if (c->flags & CARRY)
-        val |= 0x1;
-    else
-        val &= ~0x1;
-    if (c->accumulator & 0x80)
-        c->flags |= CARRY;
-    else
-        c->flags &= ~CARRY;
-    loadRegister(c, &c->accumulator, val);
-    c->tick = 0xff;
-}
-void lsrMemory(cpu *c)
+void lsr(cpu *c)
 {
     if (c->temp & 0x1)
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
-    writeValue(c, c->ad, c->temp >> 1);
-    c->tick = 0xff;
+    c->temp >>= 1;
 }
-void aslMemory(cpu *c)
+void asl(cpu *c)
 {
     if (c->temp & 0x80)
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
-    writeValue(c, c->ad, c->temp << 1);
-    c->tick = 0xff;
+    c->temp <<= 1;
 }
-void rorMemory(cpu *c)
+void ror(cpu *c)
 {
     uint8_t val = c->temp >> 1;
     if (c->flags & CARRY)
@@ -531,10 +483,9 @@ void rorMemory(cpu *c)
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
-    writeValue(c, c->ad, val);
-    c->tick = 0xff;
+    c->temp = val;
 }
-void rolMemory(cpu *c)
+void rol(cpu *c)
 {
     uint8_t val = c->temp << 1;
     if (c->flags & CARRY)
@@ -545,125 +496,70 @@ void rolMemory(cpu *c)
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
-    writeValue(c, c->ad, val);
-    c->tick = 0xff;
+    c->temp = val;
 }
 void inx(cpu *c)
 {
-    loadRegister(c, &c->x, c->x + 1);
-    c->tick = 0xff;
+    loadRegister(c, &c->x, c->x + 1); 
 }
 void iny(cpu *c)
 {
     loadRegister(c, &c->y, c->y + 1);
-    c->tick = 0xff;
 }
 void dex(cpu *c)
 {
     loadRegister(c, &c->x, c->x - 1);
-    c->tick = 0xff;
 }
 void dey(cpu *c)
 {
     loadRegister(c, &c->y, c->y - 1);
-    c->tick = 0xff;
 }
 void lda(cpu *c)
 {
     loadRegister(c, &c->accumulator, c->temp);
-    c->tick = 0xff;
-}
-void ldaImmediate(cpu *c)
-{
-    fetchValue(c);
-    lda(c);
-}
-void ldaMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    lda(c);
 }
 void ldx(cpu *c)
 {
     loadRegister(c, &c->x, c->temp);
-    c->tick = 0xff;
-}
-void ldxImmediate(cpu *c)
-{
-    fetchValue(c);
-    ldx(c);
-}
-void ldxMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    ldx(c);
 }
 void ldy(cpu *c)
 {
     loadRegister(c, &c->y, c->temp);
-    c->tick = 0xff;
-}
-
-void ldyImmediate(cpu *c)
-{
-    fetchValue(c);
-    ldy(c);
-}
-void ldyMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    ldy(c);
 }
 void lax(cpu *c)
 {
-    c->temp = cpu_readMemory(c, c->ad);
     loadRegister(c, &c->accumulator, c->temp);
     loadRegister(c, &c->x, c->temp);
-    c->tick = 0xff;
 }
 void eor(cpu *c)
 {
     loadRegister(c, &c->accumulator, (c->temp ^ c->accumulator));
-    c->tick = 0xff;
 }
-void eorImmediate(cpu *c)
-{
-    fetchValue(c);
-    eor(c);
-}
-void eorMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    eor(c);
-}
-void and (cpu * c)
+void and(cpu * c)
 {
     loadRegister(c, &c->accumulator, (c->temp & c->accumulator));
-    c->tick = 0xff;
 }
 void anc(cpu *c)
 {
-    loadRegister(c, &c->accumulator, (c->temp & c->accumulator));
+    and(c);
     if (c->accumulator & 0x80)
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
-    c->tick = 0xff;
 }
 void alr(cpu *c)
 {
     and(c);
-    lsrAccumulator(c);
-}
-void alrImmediate(cpu *c)
-{
-    fetchValue(c);
-    alr(c);
+    c->temp = c->accumulator;
+    lsr(c);
+    loadRegister(c, &c->accumulator, c->temp);
 }
 void arr(cpu *c)
 {
     and(c);
-    rorAccumulator(c);
+    c->temp = c->accumulator;
+    ror(c);
+    loadRegister(c, &c->accumulator, c->temp);
     if (c->accumulator & 0x20)
     {
         if (c->accumulator & 0x40)
@@ -691,57 +587,22 @@ void arr(cpu *c)
         }
     }
 }
-void arrImmediate(cpu *c)
-{
-    fetchValue(c);
-    arr(c);
-}
-void andImmediate(cpu *c)
-{
-    fetchValue(c);
-    and(c);
-}
-void ancImmediate(cpu *c)
-{
-    fetchValue(c);
-    anc(c);
-}
 void atx(cpu *c)
 {
-    fetchValue(c);
     loadRegister(c, &c->accumulator, c->temp);
     loadRegister(c, &c->x, c->accumulator);
-    c->tick = 0xff;
 }
 void axs(cpu *c)
 {
-    fetchValue(c);
     if (c->temp <= (c->accumulator & c->x))
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
     loadRegister(c, &c->x, (c->accumulator & c->x) - c->temp);
-    c->tick = 0xff;
-}
-void andMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    and(c);
 }
 void ora(cpu *c)
 {
     loadRegister(c, &c->accumulator, (c->temp | c->accumulator));
-    c->tick = 0xff;
-}
-void oraImmediate(cpu *c)
-{
-    fetchValue(c);
-    ora(c);
-}
-void oraMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    ora(c);
 }
 void adc(cpu *c)
 {
@@ -755,28 +616,10 @@ void adc(cpu *c)
         c->flags |= OVERFLOW;
     else
         c->flags &= ~OVERFLOW;
-    loadRegister(c, &c->accumulator, result);
-    c->tick = 0xff;
+    loadRegister(c, &c->accumulator, result);  
 }
-void adcImmediate(cpu *c)
+void sbc(cpu *c)
 {
-    fetchValue(c);
-    adc(c);
-}
-void adcMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    adc(c);
-}
-void sbcImmediate(cpu *c)
-{
-    fetchValue(c);
-    c->temp = ~c->temp;
-    adc(c);
-}
-void sbcMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
     c->temp = ~c->temp;
     adc(c);
 }
@@ -793,8 +636,7 @@ void cmp(cpu *c)
     if ((c->accumulator - c->temp) & 0x80)
         c->flags |= NEGATIVE;
     else
-        c->flags &= ~NEGATIVE;
-    c->tick = 0xff;
+        c->flags &= ~NEGATIVE; 
 }
 void cpx(cpu *c)
 {
@@ -809,8 +651,7 @@ void cpx(cpu *c)
     if ((c->x - c->temp) & 0x80)
         c->flags |= NEGATIVE;
     else
-        c->flags &= ~NEGATIVE;
-    c->tick = 0xff;
+        c->flags &= ~NEGATIVE;  
 }
 void cpy(cpu *c)
 {
@@ -825,38 +666,7 @@ void cpy(cpu *c)
     if ((c->y - c->temp) & 0x80)
         c->flags |= NEGATIVE;
     else
-        c->flags &= ~NEGATIVE;
-    c->tick = 0xff;
-}
-void cmpImmediate(cpu *c)
-{
-    fetchValue(c);
-    cmp(c);
-}
-void cmpMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    cmp(c);
-}
-void cpxImmediate(cpu *c)
-{
-    fetchValue(c);
-    cpx(c);
-}
-void cpxMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    cpx(c);
-}
-void cpyImmediate(cpu *c)
-{
-    fetchValue(c);
-    cpy(c);
-}
-void cpyMemory(cpu *c)
-{
-    c->temp = cpu_readMemory(c, c->ad);
-    cpy(c);
+        c->flags &= ~NEGATIVE; 
 }
 void bit(cpu *c)
 {
@@ -872,84 +682,87 @@ void bit(cpu *c)
     if (val & 0x40)
         c->flags |= OVERFLOW;
     else
-        c->flags &= ~OVERFLOW;
-    c->tick = 0xff;
+        c->flags &= ~OVERFLOW;   
 }
 void sta(cpu *c)
 {
     cpu_writeMemory(c, c->ad, c->accumulator);
-    c->tick = 0xff;
 }
 void stx(cpu *c)
 {
     cpu_writeMemory(c, c->ad, c->x);
-    c->tick = 0xff;
 }
 void aax(cpu *c)
 {
-    cpu_writeMemory(c, c->ad, c->accumulator & c->x);
-    c->tick = 0xff;
+    cpu_writeMemory(c, c->ad, c->accumulator & c->x);  
 }
 void sty(cpu *c)
 {
-    cpu_writeMemory(c, c->ad, c->y);
-    c->tick = 0xff;
+    cpu_writeMemory(c, c->ad, c->y);  
 }
 void sya(cpu *c)
 {
     uint8_t result = c->y & (*c->adH + 1);
     if (cpu_readMemory(c, c->pc - 1) != *c->adH)
         *c->adH = result;
-    cpu_writeMemory(c, c->ad, result);
-    c->tick = 0xff;
+    cpu_writeMemory(c, c->ad, result);  
 }
 void sxa(cpu *c)
 {
     uint8_t result = c->x & (*c->adH + 1);
     if (cpu_readMemory(c, c->pc - 1) != *c->adH)
         *c->adH = result;
-    cpu_writeMemory(c, c->ad, result);
-    c->tick = 0xff;
+    cpu_writeMemory(c, c->ad, result); 
 }
 void dec(cpu *c)
 {
-    writeValue(c, c->ad, c->temp - 1);
-    c->tick = 0xff;
+    c->temp--;
 }
 void inc(cpu *c)
 {
-    writeValue(c, c->ad, c->temp + 1);
-    c->tick = 0xff;
+    c->temp++;
 }
 void dcp(cpu *c)
 {
     dec(c);
-    cmpMemory(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    cmp(c);
 }
 void isc(cpu *c)
 {
     inc(c);
-    sbcMemory(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    sbc(c);
 }
 void rla(cpu *c)
 {
-    rolMemory(c);
-    andMemory(c);
+    rol(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    and(c);
 }
 void rra(cpu *c)
 {
-    rorMemory(c);
-    adcMemory(c);
+    ror(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    adc(c); 
 }
 void slo(cpu *c)
 {
-    aslMemory(c);
-    oraMemory(c);
+    asl(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    ora(c); 
 }
 void sre(cpu *c)
 {
-    lsrMemory(c);
-    eorMemory(c);
+    lsr(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    eor(c); 
 }
 void beq(cpu *c)
 {
@@ -959,7 +772,6 @@ void beq(cpu *c)
     }
     else
     {
-        c->tick = 0;
         fetchOp(c);
     }
 }
@@ -971,7 +783,6 @@ void bne(cpu *c)
     }
     else
     {
-        c->tick = 0;
         fetchOp(c);
     }
 }
@@ -983,7 +794,6 @@ void bmi(cpu *c)
     }
     else
     {
-        c->tick = 0;
         fetchOp(c);
     }
 }
@@ -995,7 +805,6 @@ void bpl(cpu *c)
     }
     else
     {
-        c->tick = 0;
         fetchOp(c);
     }
 }
@@ -1007,7 +816,6 @@ void bcs(cpu *c)
     }
     else
     {
-        c->tick = 0;
         fetchOp(c);
     }
 }
@@ -1019,7 +827,6 @@ void bcc(cpu *c)
     }
     else
     {
-        c->tick = 0;
         fetchOp(c);
     }
 }
@@ -1031,7 +838,6 @@ void bvs(cpu *c)
     }
     else
     {
-        c->tick = 0;
         fetchOp(c);
     }
 }
@@ -1043,7 +849,6 @@ void bvc(cpu *c)
     }
     else
     {
-        c->tick = 0;
         fetchOp(c);
     }
 }
@@ -1054,11 +859,10 @@ void branch(cpu *c)
         if (*c->pcL < c->temp)
         {
             (*c->pcH)++;
-            c->tick = 0xff;
+            c->tick++;
         }
         else
         {
-            c->tick = 0;
             fetchOp(c);
         }
     }
@@ -1068,11 +872,10 @@ void branch(cpu *c)
         if (*c->pcL > prev)
         {
             (*c->pcH)--;
-            c->tick = 0xff;
+            c->tick++;
         }
         else
         {
-            c->tick = 0;
             fetchOp(c);
         }
     }
@@ -1117,6 +920,96 @@ uint16_t *cpu_getAddress(cpu *c)
     return &(c->address);
 }
 
+void map_operation(cpu *c, uint8_t opcode, enum AddressMode_t addr_mode, enum InstructionMode_t instr_mode, opPtr op)
+{
+    c->ops[opcode][0] = fetchOp;
+    int op_offset = 0;
+    switch (addr_mode)
+    {
+    case IMPLIED:
+        op_offset = 1;
+        break;
+    case ACCUMULATOR:
+        c->ops[opcode][1] = accumulatorOp;
+        op_offset = 2;
+        break;
+    case IMMEDIATE:
+        c->ops[opcode][1] = immediateOp;
+        op_offset = 2;
+        break;
+    case ABSOLUTE:
+        c->ops[opcode][1] = fetchADL;
+        c->ops[opcode][2] = fetchADH;
+        c->ops[opcode][3] = memoryOp;
+        op_offset = 4;
+        break;
+    case ZEROPAGE:
+        c->ops[opcode][1] = fetchADL;
+        c->ops[opcode][2] = memoryOp;
+        op_offset = 3;
+        break;
+    case ZEROPAGE_X:
+        c->ops[opcode][1] = fetchADL;
+        c->ops[opcode][2] = readZpX;
+        c->ops[opcode][3] = memoryOp;
+        op_offset = 4;
+        break;
+    case ZEROPAGE_Y:
+        c->ops[opcode][1] = fetchADL;
+        c->ops[opcode][2] = readZpY;
+        c->ops[opcode][3] = memoryOp;
+        op_offset = 4;
+        break;
+    case ABSOLUTE_X:
+        c->ops[opcode][1] = fetchADL;
+        c->ops[opcode][2] = fetchADH;
+        c->ops[opcode][3] = readAbsX;
+        c->ops[opcode][4] = memoryOp;
+        op_offset = 5;
+        break;
+    case ABSOLUTE_Y:
+        c->ops[opcode][1] = fetchADL;
+        c->ops[opcode][2] = fetchADH;
+        c->ops[opcode][3] = readAbsY;
+        c->ops[opcode][4] = memoryOp;
+        op_offset = 5;
+        break;
+    case INDIRECT_X:
+        c->ops[opcode][1] = fetchADL;
+        c->ops[opcode][2] = readAddress;
+        c->ops[opcode][3] = fetchIndirectXLow;
+        c->ops[opcode][4] = fetchIndirectXHigh;
+        c->ops[opcode][5] = memoryOp;
+        op_offset = 6;
+        break;
+    case INDIRECT_Y:
+        c->ops[opcode][1] = fetchADL;
+        c->ops[opcode][2] = readAddress;
+        c->ops[opcode][3] = fetchIndirectY;
+        c->ops[opcode][4] = readIndirect;
+        c->ops[opcode][5] = memoryOp;
+        op_offset = 6;
+        break;
+    case RELATIVE:
+        c->ops[opcode][1] = fetchValue;
+        op_offset = 2;
+        c->ops[opcode][3] = branch;
+        break;
+    }
+    c->ops[opcode][op_offset] = op;
+    if (instr_mode == RMW_OP || instr_mode == RMW_READ_OP)
+    {
+        c->ops[opcode][op_offset - 1] = readAddress;
+        c->ops[opcode][op_offset] = writeAddress;
+        c->ops[opcode][op_offset + 1] = writeOp;
+        c->ops[opcode][op_offset + 2] = op;
+    }
+    if (instr_mode == RMW_READ_OP)
+    {
+        c->ops[opcode][op_offset + 1] = rmwReadOp;
+    }
+}
+
 cpu *cpu_create()
 {
     cpu *newCPU = malloc(sizeof(cpu));
@@ -1141,433 +1034,329 @@ cpu *cpu_create()
     }
     for (int i = 0; i < 0x100; i++)
     {
-        newCPU->ops[i][0] = fetchOp;
-        newCPU->ops[i][1] = stuck;
-        newCPU->ops[i][2] = stuck;
-        newCPU->ops[i][3] = stuck;
-        newCPU->ops[i][4] = stuck;
-        newCPU->ops[i][5] = stuck;
-        newCPU->ops[i][6] = stuck;
-        newCPU->ops[i][7] = stuck;
-    }
-
-    for (int i = 0; i < 0x10; i++)
-    {
-        newCPU->ops[i * 0x10 + 0x1][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0x3][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0x4][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0x5][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0x6][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0x7][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0xc][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0xd][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0xe][1] = fetchADL;
-        newCPU->ops[i * 0x10 + 0xf][1] = fetchADL;
-
-        newCPU->ops[i * 0x10 + 0xc][2] = fetchADH;
-        newCPU->ops[i * 0x10 + 0xd][2] = fetchADH;
-        newCPU->ops[i * 0x10 + 0xe][2] = fetchADH;
-        newCPU->ops[i * 0x10 + 0xf][2] = fetchADH;
-
-        newCPU->ops[i * 0x10 + 0x1][2] = readAddress;
-        newCPU->ops[i * 0x10 + 0x3][2] = readAddress;
-
-        if (i % 2)
+        for (int j = 0; j < 10; j++)
         {
-            newCPU->ops[i * 0x10 + 0x9][1] = fetchADL;
-            newCPU->ops[i * 0x10 + 0x9][2] = fetchADH;
-            newCPU->ops[i * 0x10 + 0x4][2] = readZpX;
-            newCPU->ops[i * 0x10 + 0x5][2] = readZpX;
-            newCPU->ops[i * 0x10 + 0x1][3] = fetchIndirectY;
-            newCPU->ops[i * 0x10 + 0x3][3] = fetchIndirectY;
-            newCPU->ops[i * 0x10][3] = branch;
-
-            if ((i & 0xc) != 0x8)
-            {
-                newCPU->ops[i * 0x10 + 0xb][1] = fetchADL;
-                newCPU->ops[i * 0x10 + 0xb][2] = fetchADH;
-                newCPU->ops[i * 0x10 + 0xe][4] = readAddress;
-                newCPU->ops[i * 0x10 + 0x6][3] = readAddress;
-                newCPU->ops[i * 0x10 + 0xf][4] = readAddress;
-                newCPU->ops[i * 0x10 + 0xb][4] = readAddress;
-                newCPU->ops[i * 0x10 + 0x7][3] = readAddress;
-                newCPU->ops[i * 0x10 + 0x3][5] = readAddress;
-                newCPU->ops[i * 0x10 + 0x6][4] = writeAddress;
-                newCPU->ops[i * 0x10 + 0x7][4] = writeAddress;
-                newCPU->ops[i * 0x10 + 0xb][5] = writeAddress;
-                newCPU->ops[i * 0x10 + 0xe][5] = writeAddress;
-                newCPU->ops[i * 0x10 + 0xf][5] = writeAddress;
-                newCPU->ops[i * 0x10 + 0x3][6] = writeAddress;
-                newCPU->ops[i * 0x10 + 0x6][2] = readZpX;
-                newCPU->ops[i * 0x10 + 0x7][2] = readZpX;
-                newCPU->ops[i * 0x10 + 0xe][3] = writeAbsX;
-                newCPU->ops[i * 0x10 + 0xf][3] = writeAbsX;
-                newCPU->ops[i * 0x10 + 0xb][3] = writeAbsY;
-                newCPU->ops[i * 0x10 + 0x4][3] = nop;
-                newCPU->ops[i * 0x10 + 0xc][4] = nop;
-            }
-
-            if (i != 0x9)
-            {
-                newCPU->ops[i * 0x10 + 0x1][4] = readIndirect;
-                newCPU->ops[i * 0x10 + 0x3][4] = readIndirect;
-                newCPU->ops[i * 0x10 + 0xc][3] = readAbsX;
-                newCPU->ops[i * 0x10 + 0xd][3] = readAbsX;
-                newCPU->ops[i * 0x10 + 0x9][3] = readAbsY;
-            }
-        }
-        else
-        {
-            if ((i & 0xc) != 0x8)
-            {
-                newCPU->ops[i * 0x10 + 0xe][3] = readAddress;
-                newCPU->ops[i * 0x10 + 0x6][2] = readAddress;
-                newCPU->ops[i * 0x10 + 0xf][3] = readAddress;
-                newCPU->ops[i * 0x10 + 0x7][2] = readAddress;
-                newCPU->ops[i * 0x10 + 0x6][3] = writeAddress;
-                newCPU->ops[i * 0x10 + 0x7][3] = writeAddress;
-                newCPU->ops[i * 0x10 + 0xe][4] = writeAddress;
-                newCPU->ops[i * 0x10 + 0xf][4] = writeAddress;
-                newCPU->ops[i * 0x10 + 0x3][5] = readAddress;
-                newCPU->ops[i * 0x10 + 0x3][6] = writeAddress;
-            }
-            newCPU->ops[i * 0x10 + 0x1][3] = fetchIndirectXLow;
-            newCPU->ops[i * 0x10 + 0x3][3] = fetchIndirectXLow;
-            newCPU->ops[i * 0x10 + 0x1][4] = fetchIndirectXHigh;
-            newCPU->ops[i * 0x10 + 0x3][4] = fetchIndirectXHigh;
+            newCPU->ops[i][j] = fetchOp;
         }
     }
-
-    newCPU->ops[0x6c][3] = readAddress;
-
-    newCPU->ops[0x20][1] = fetchADL;
 
     newCPU->ops[0x00][1] = fetchValue;
-    newCPU->ops[0x10][1] = fetchValue;
-    newCPU->ops[0x30][1] = fetchValue;
-    newCPU->ops[0x40][1] = fetchValue;
-    newCPU->ops[0x50][1] = fetchValue;
-    newCPU->ops[0x60][1] = fetchValue;
-    newCPU->ops[0x70][1] = fetchValue;
-    newCPU->ops[0x90][1] = fetchValue;
-    newCPU->ops[0xb0][1] = fetchValue;
-    newCPU->ops[0xd0][1] = fetchValue;
-    newCPU->ops[0xf0][1] = fetchValue;
-
-    newCPU->ops[0x96][2] = readZpY;
-    newCPU->ops[0xb6][2] = readZpY;
-    newCPU->ops[0x97][2] = readZpY;
-    newCPU->ops[0xb7][2] = readZpY;
-
-    newCPU->ops[0x91][4] = writeIndirect;
-
-    newCPU->ops[0x9d][3] = writeAbsX;
-
-    newCPU->ops[0x9c][1] = fetchADL;
-    newCPU->ops[0x9c][2] = fetchADH;
-    newCPU->ops[0x9c][3] = writeAbsX;
-    newCPU->ops[0x9c][4] = sya;
-
-    newCPU->ops[0x9e][1] = fetchADL;
-    newCPU->ops[0x9e][2] = fetchADH;
-    newCPU->ops[0x9e][3] = writeAbsY;
-    newCPU->ops[0x9e][4] = sxa;
-
-    newCPU->ops[0xbe][3] = readAbsY;
-    newCPU->ops[0xbf][3] = readAbsY;
-
-    newCPU->ops[0x99][3] = writeAbsY;
-
-    newCPU->ops[0xa1][5] = ldaMemory;
-    newCPU->ops[0xb1][5] = ldaMemory;
-    newCPU->ops[0xa5][2] = ldaMemory;
-    newCPU->ops[0xb5][3] = ldaMemory;
-    newCPU->ops[0xb9][4] = ldaMemory;
-    newCPU->ops[0xad][3] = ldaMemory;
-    newCPU->ops[0xbd][4] = ldaMemory;
-
-    newCPU->ops[0xa6][2] = ldxMemory;
-    newCPU->ops[0xb6][3] = ldxMemory;
-    newCPU->ops[0xae][3] = ldxMemory;
-    newCPU->ops[0xbe][4] = ldxMemory;
-
-    newCPU->ops[0xa3][5] = lax;
-    newCPU->ops[0xb3][5] = lax;
-    newCPU->ops[0xa7][2] = lax;
-    newCPU->ops[0xb7][3] = lax;
-    newCPU->ops[0xaf][3] = lax;
-    newCPU->ops[0xbf][4] = lax;
-
-    newCPU->ops[0xa4][2] = ldyMemory;
-    newCPU->ops[0xb4][3] = ldyMemory;
-    newCPU->ops[0xac][3] = ldyMemory;
-    newCPU->ops[0xbc][4] = ldyMemory;
-
-    newCPU->ops[0x01][5] = oraMemory;
-    newCPU->ops[0x11][5] = oraMemory;
-    newCPU->ops[0x05][2] = oraMemory;
-    newCPU->ops[0x15][3] = oraMemory;
-    newCPU->ops[0x19][4] = oraMemory;
-    newCPU->ops[0x0d][3] = oraMemory;
-    newCPU->ops[0x1d][4] = oraMemory;
-
-    newCPU->ops[0x21][5] = andMemory;
-    newCPU->ops[0x31][5] = andMemory;
-    newCPU->ops[0x25][2] = andMemory;
-    newCPU->ops[0x35][3] = andMemory;
-    newCPU->ops[0x39][4] = andMemory;
-    newCPU->ops[0x2d][3] = andMemory;
-    newCPU->ops[0x3d][4] = andMemory;
-
-    newCPU->ops[0x41][5] = eorMemory;
-    newCPU->ops[0x51][5] = eorMemory;
-    newCPU->ops[0x45][2] = eorMemory;
-    newCPU->ops[0x55][3] = eorMemory;
-    newCPU->ops[0x59][4] = eorMemory;
-    newCPU->ops[0x4d][3] = eorMemory;
-    newCPU->ops[0x5d][4] = eorMemory;
-
-    newCPU->ops[0x61][5] = adcMemory;
-    newCPU->ops[0x71][5] = adcMemory;
-    newCPU->ops[0x65][2] = adcMemory;
-    newCPU->ops[0x75][3] = adcMemory;
-    newCPU->ops[0x79][4] = adcMemory;
-    newCPU->ops[0x6d][3] = adcMemory;
-    newCPU->ops[0x7d][4] = adcMemory;
-
-    newCPU->ops[0xc1][5] = cmpMemory;
-    newCPU->ops[0xd1][5] = cmpMemory;
-    newCPU->ops[0xc5][2] = cmpMemory;
-    newCPU->ops[0xd5][3] = cmpMemory;
-    newCPU->ops[0xd9][4] = cmpMemory;
-    newCPU->ops[0xcd][3] = cmpMemory;
-    newCPU->ops[0xdd][4] = cmpMemory;
-
-    newCPU->ops[0xe1][5] = sbcMemory;
-    newCPU->ops[0xf1][5] = sbcMemory;
-    newCPU->ops[0xe5][2] = sbcMemory;
-    newCPU->ops[0xf5][3] = sbcMemory;
-    newCPU->ops[0xf9][4] = sbcMemory;
-    newCPU->ops[0xed][3] = sbcMemory;
-    newCPU->ops[0xfd][4] = sbcMemory;
-
-    newCPU->ops[0xe4][2] = cpxMemory;
-    newCPU->ops[0xec][3] = cpxMemory;
-
-    newCPU->ops[0xc4][2] = cpyMemory;
-    newCPU->ops[0xcc][3] = cpyMemory;
-
-    newCPU->ops[0x06][4] = aslMemory;
-    newCPU->ops[0x0e][5] = aslMemory;
-    newCPU->ops[0x16][5] = aslMemory;
-    newCPU->ops[0x1e][6] = aslMemory;
-
-    newCPU->ops[0x26][4] = rolMemory;
-    newCPU->ops[0x2e][5] = rolMemory;
-    newCPU->ops[0x36][5] = rolMemory;
-    newCPU->ops[0x3e][6] = rolMemory;
-
-    newCPU->ops[0x46][4] = lsrMemory;
-    newCPU->ops[0x4e][5] = lsrMemory;
-    newCPU->ops[0x56][5] = lsrMemory;
-    newCPU->ops[0x5e][6] = lsrMemory;
-
-    newCPU->ops[0x66][4] = rorMemory;
-    newCPU->ops[0x6e][5] = rorMemory;
-    newCPU->ops[0x76][5] = rorMemory;
-    newCPU->ops[0x7e][6] = rorMemory;
-
-    newCPU->ops[0x03][7] = slo;
-    newCPU->ops[0x13][7] = slo;
-    newCPU->ops[0x07][4] = slo;
-    newCPU->ops[0x17][5] = slo;
-    newCPU->ops[0x1b][6] = slo;
-    newCPU->ops[0x0f][5] = slo;
-    newCPU->ops[0x1f][6] = slo;
-
-    newCPU->ops[0x23][7] = rla;
-    newCPU->ops[0x33][7] = rla;
-    newCPU->ops[0x27][4] = rla;
-    newCPU->ops[0x37][5] = rla;
-    newCPU->ops[0x3b][6] = rla;
-    newCPU->ops[0x2f][5] = rla;
-    newCPU->ops[0x3f][6] = rla;
-
-    newCPU->ops[0x43][7] = sre;
-    newCPU->ops[0x53][7] = sre;
-    newCPU->ops[0x47][4] = sre;
-    newCPU->ops[0x57][5] = sre;
-    newCPU->ops[0x5b][6] = sre;
-    newCPU->ops[0x4f][5] = sre;
-    newCPU->ops[0x5f][6] = sre;
-
-    newCPU->ops[0x63][7] = rra;
-    newCPU->ops[0x73][7] = rra;
-    newCPU->ops[0x67][4] = rra;
-    newCPU->ops[0x77][5] = rra;
-    newCPU->ops[0x7b][6] = rra;
-    newCPU->ops[0x6f][5] = rra;
-    newCPU->ops[0x7f][6] = rra;
-
-    newCPU->ops[0xc3][7] = dcp;
-    newCPU->ops[0xd3][7] = dcp;
-    newCPU->ops[0xc7][4] = dcp;
-    newCPU->ops[0xd7][5] = dcp;
-    newCPU->ops[0xdb][6] = dcp;
-    newCPU->ops[0xcf][5] = dcp;
-    newCPU->ops[0xdf][6] = dcp;
-
-    newCPU->ops[0xe3][7] = isc;
-    newCPU->ops[0xf3][7] = isc;
-    newCPU->ops[0xe7][4] = isc;
-    newCPU->ops[0xf7][5] = isc;
-    newCPU->ops[0xfb][6] = isc;
-    newCPU->ops[0xef][5] = isc;
-    newCPU->ops[0xff][6] = isc;
-
-    newCPU->ops[0x91][5] = sta;
-    newCPU->ops[0x81][5] = sta;
-    newCPU->ops[0x85][2] = sta;
-    newCPU->ops[0x95][3] = sta;
-    newCPU->ops[0x99][4] = sta;
-    newCPU->ops[0x8d][3] = sta;
-    newCPU->ops[0x9d][4] = sta;
-
-    newCPU->ops[0x83][5] = aax;
-    newCPU->ops[0x87][2] = aax;
-    newCPU->ops[0x97][3] = aax;
-    newCPU->ops[0x8f][3] = aax;
-
-    newCPU->ops[0x86][2] = stx;
-    newCPU->ops[0x96][3] = stx;
-    newCPU->ops[0x8e][3] = stx;
-
-    newCPU->ops[0x84][2] = sty;
-    newCPU->ops[0x94][3] = sty;
-    newCPU->ops[0x8c][3] = sty;
-
-    newCPU->ops[0xe6][4] = inc;
-    newCPU->ops[0xee][5] = inc;
-    newCPU->ops[0xf6][5] = inc;
-    newCPU->ops[0xfe][6] = inc;
-
-    newCPU->ops[0xc6][4] = dec;
-    newCPU->ops[0xd6][5] = dec;
-    newCPU->ops[0xce][5] = dec;
-    newCPU->ops[0xde][6] = dec;
-
-    newCPU->ops[0x24][2] = bit;
-    newCPU->ops[0x2c][3] = bit;
-
-    newCPU->ops[0x10][2] = bpl;
-    newCPU->ops[0x30][2] = bmi;
-    newCPU->ops[0x50][2] = bvc;
-    newCPU->ops[0x70][2] = bvs;
-    newCPU->ops[0x90][2] = bcc;
-    newCPU->ops[0xb0][2] = bcs;
-    newCPU->ops[0xd0][2] = bne;
-    newCPU->ops[0xf0][2] = beq;
-
-    newCPU->ops[0x40][2] = ins;
-    newCPU->ops[0x60][2] = ins;
-    newCPU->ops[0x28][2] = ins;
-    newCPU->ops[0x68][2] = ins;
-
-    newCPU->ops[0x48][1] = readValue;
-    newCPU->ops[0x68][1] = readValue;
-    newCPU->ops[0x28][1] = readValue;
-    newCPU->ops[0x08][1] = readValue;
-
-    newCPU->ops[0x20][5] = jmp;
-    newCPU->ops[0x4c][2] = jmp;
-
     newCPU->ops[0x00][2] = pushPCH;
-    newCPU->ops[0x20][3] = pushPCH;
-
     newCPU->ops[0x00][3] = pushPCL;
-    newCPU->ops[0x20][4] = pushPCL;
-
-    newCPU->ops[0x40][4] = pullPCL;
-    newCPU->ops[0x60][3] = pullPCL;
-
-    newCPU->ops[0x60][4] = pullPCH;
-
-    newCPU->ops[0x40][5] = rtiPullPCH;
-
-    newCPU->ops[0xa8][1] = tay;
-    newCPU->ops[0x98][1] = tya;
-    newCPU->ops[0x8a][1] = txa;
-    newCPU->ops[0x9a][1] = txs;
-    newCPU->ops[0xaa][1] = tax;
-    newCPU->ops[0xba][1] = tsx;
-
-    newCPU->ops[0x18][1] = clc;
-    newCPU->ops[0x38][1] = sec;
-    newCPU->ops[0x58][1] = cli;
-    newCPU->ops[0x78][1] = sei;
-    newCPU->ops[0xb8][1] = clv;
-    newCPU->ops[0xd8][1] = cld;
-    newCPU->ops[0xf8][1] = sed;
-
-    newCPU->ops[0x88][1] = dey;
-    newCPU->ops[0xc8][1] = iny;
-    newCPU->ops[0xe8][1] = inx;
-    newCPU->ops[0xca][1] = dex;
-
-    newCPU->ops[0x1a][1] = nop;
-    newCPU->ops[0x3a][1] = nop;
-    newCPU->ops[0x5a][1] = nop;
-    newCPU->ops[0x7a][1] = nop;
-    newCPU->ops[0xda][1] = nop;
-    newCPU->ops[0xea][1] = nop;
-    newCPU->ops[0xfa][1] = nop;
-
-    newCPU->ops[0x80][1] = dop;
-    newCPU->ops[0x82][1] = dop;
-    newCPU->ops[0x89][1] = dop;
-    newCPU->ops[0xc2][1] = dop;
-    newCPU->ops[0xe2][1] = dop;
-    newCPU->ops[0x04][2] = nop;
-    newCPU->ops[0x44][2] = nop;
-    newCPU->ops[0x64][2] = nop;
-    newCPU->ops[0x0c][3] = nop;
-
-    newCPU->ops[0x08][2] = php;
-    newCPU->ops[0x28][3] = plp;
-    newCPU->ops[0x48][2] = pha;
-    newCPU->ops[0x68][3] = pla;
-
-    newCPU->ops[0xa0][1] = ldyImmediate;
-    newCPU->ops[0xc0][1] = cpyImmediate;
-    newCPU->ops[0xe0][1] = cpxImmediate;
-    newCPU->ops[0xa2][1] = ldxImmediate;
-    newCPU->ops[0x09][1] = oraImmediate;
-    newCPU->ops[0x29][1] = andImmediate;
-    newCPU->ops[0x0b][1] = ancImmediate;
-    newCPU->ops[0x2b][1] = ancImmediate;
-    newCPU->ops[0x4b][1] = alrImmediate;
-    newCPU->ops[0x6b][1] = arrImmediate;
-    newCPU->ops[0xab][1] = atx;
-    newCPU->ops[0xcb][1] = axs;
-    newCPU->ops[0x49][1] = eorImmediate;
-    newCPU->ops[0x69][1] = adcImmediate;
-    newCPU->ops[0xa9][1] = ldaImmediate;
-    newCPU->ops[0xc9][1] = cmpImmediate;
-    newCPU->ops[0xe9][1] = sbcImmediate;
-    newCPU->ops[0xeb][1] = sbcImmediate;
-
-    newCPU->ops[0x0a][1] = aslAccumulator;
-    newCPU->ops[0x2a][1] = rolAccumulator;
-    newCPU->ops[0x4a][1] = lsrAccumulator;
-    newCPU->ops[0x6a][1] = rorAccumulator;
-
-    newCPU->ops[0x20][2] = readStack;
-    newCPU->ops[0x6c][4] = jmpIndirect;
     newCPU->ops[0x00][4] = pushBStatus;
     newCPU->ops[0x00][5] = fetchPCLbrk;
     newCPU->ops[0x00][6] = fetchPCHbrk;
-    newCPU->ops[0x60][5] = incPC;
+
+    newCPU->ops[0x20][1] = fetchADL;
+    newCPU->ops[0x20][2] = readStack;
+    newCPU->ops[0x20][3] = pushPCH;
+    newCPU->ops[0x20][4] = pushPCL;
+    newCPU->ops[0x20][5] = jmp;
+
+    newCPU->ops[0x6c][1] = fetchADL;
+    newCPU->ops[0x6c][2] = fetchADH;
+    newCPU->ops[0x6c][3] = readAddress;
+    newCPU->ops[0x6c][4] = jmpIndirect;
+
+    newCPU->ops[0x28][1] = readValue;
+    newCPU->ops[0x28][2] = ins;
+    newCPU->ops[0x28][3] = plp;
+
+    newCPU->ops[0x68][1] = readValue;
+    newCPU->ops[0x68][2] = ins;
+    newCPU->ops[0x68][3] = pla;
+
+    newCPU->ops[0x48][1] = readValue;
+    newCPU->ops[0x48][2] = pha;
+    
+    newCPU->ops[0x08][1] = readValue;
+    newCPU->ops[0x08][2] = php;
+
+    newCPU->ops[0x4c][1] = fetchADL;
+    newCPU->ops[0x4c][2] = jmp;
+
+    newCPU->ops[0x40][1] = fetchValue;
+    newCPU->ops[0x40][2] = ins;
     newCPU->ops[0x40][3] = pullFlags;
+    newCPU->ops[0x40][4] = pullPCL;
+    newCPU->ops[0x40][5] = rtiPullPCH;
+
+    newCPU->ops[0x60][1] = fetchValue;
+    newCPU->ops[0x60][2] = ins;
+    newCPU->ops[0x60][3] = pullPCL;
+    newCPU->ops[0x60][4] = pullPCH;
+    newCPU->ops[0x60][5] = incPC;
+
+    map_operation(newCPU, 0x09, IMMEDIATE, READ_OP, ora);
+    map_operation(newCPU, 0x29, IMMEDIATE, READ_OP, and);
+    map_operation(newCPU, 0x49, IMMEDIATE, READ_OP, eor);
+    map_operation(newCPU, 0x69, IMMEDIATE, READ_OP, adc);
+    map_operation(newCPU, 0xa9, IMMEDIATE, READ_OP, lda);   
+    map_operation(newCPU, 0xc9, IMMEDIATE, READ_OP, cmp);
+    map_operation(newCPU, 0xe9, IMMEDIATE, READ_OP, sbc);
+    map_operation(newCPU, 0xeb, IMMEDIATE, READ_OP, sbc);
+
+    map_operation(newCPU, 0x0b, IMMEDIATE, READ_OP, anc);
+    map_operation(newCPU, 0x2b, IMMEDIATE, READ_OP, anc);
+    map_operation(newCPU, 0x4b, IMMEDIATE, READ_OP, alr);
+    map_operation(newCPU, 0x6b, IMMEDIATE, READ_OP, arr);
+    map_operation(newCPU, 0xab, IMMEDIATE, READ_OP, atx);
+    map_operation(newCPU, 0xcb, IMMEDIATE, READ_OP, axs);
+
+    map_operation(newCPU, 0x05, ZEROPAGE, READ_OP, ora);
+    map_operation(newCPU, 0x25, ZEROPAGE, READ_OP, and);
+    map_operation(newCPU, 0x45, ZEROPAGE, READ_OP, eor);
+    map_operation(newCPU, 0x65, ZEROPAGE, READ_OP, adc);
+    map_operation(newCPU, 0xa5, ZEROPAGE, READ_OP, lda);   
+    map_operation(newCPU, 0xc5, ZEROPAGE, READ_OP, cmp);
+    map_operation(newCPU, 0xe5, ZEROPAGE, READ_OP, sbc);
+
+    map_operation(newCPU, 0x15, ZEROPAGE_X, READ_OP, ora);
+    map_operation(newCPU, 0x35, ZEROPAGE_X, READ_OP, and);
+    map_operation(newCPU, 0x55, ZEROPAGE_X, READ_OP, eor);
+    map_operation(newCPU, 0x75, ZEROPAGE_X, READ_OP, adc);
+    map_operation(newCPU, 0xb5, ZEROPAGE_X, READ_OP, lda);   
+    map_operation(newCPU, 0xd5, ZEROPAGE_X, READ_OP, cmp);
+    map_operation(newCPU, 0xf5, ZEROPAGE_X, READ_OP, sbc);
+
+    map_operation(newCPU, 0x0d, ABSOLUTE, READ_OP, ora);
+    map_operation(newCPU, 0x2d, ABSOLUTE, READ_OP, and);
+    map_operation(newCPU, 0x4d, ABSOLUTE, READ_OP, eor);
+    map_operation(newCPU, 0x6d, ABSOLUTE, READ_OP, adc);
+    map_operation(newCPU, 0xad, ABSOLUTE, READ_OP, lda);   
+    map_operation(newCPU, 0xcd, ABSOLUTE, READ_OP, cmp);
+    map_operation(newCPU, 0xed, ABSOLUTE, READ_OP, sbc);
+
+    map_operation(newCPU, 0x1d, ABSOLUTE_X, READ_OP, ora);
+    map_operation(newCPU, 0x3d, ABSOLUTE_X, READ_OP, and);
+    map_operation(newCPU, 0x5d, ABSOLUTE_X, READ_OP, eor);
+    map_operation(newCPU, 0x7d, ABSOLUTE_X, READ_OP, adc);
+    map_operation(newCPU, 0xbd, ABSOLUTE_X, READ_OP, lda);   
+    map_operation(newCPU, 0xdd, ABSOLUTE_X, READ_OP, cmp);
+    map_operation(newCPU, 0xfd, ABSOLUTE_X, READ_OP, sbc);
+
+    map_operation(newCPU, 0x19, ABSOLUTE_Y, READ_OP, ora);
+    map_operation(newCPU, 0x39, ABSOLUTE_Y, READ_OP, and);
+    map_operation(newCPU, 0x59, ABSOLUTE_Y, READ_OP, eor);
+    map_operation(newCPU, 0x79, ABSOLUTE_Y, READ_OP, adc);
+    map_operation(newCPU, 0xb9, ABSOLUTE_Y, READ_OP, lda);   
+    map_operation(newCPU, 0xd9, ABSOLUTE_Y, READ_OP, cmp);
+    map_operation(newCPU, 0xf9, ABSOLUTE_Y, READ_OP, sbc);
+
+    map_operation(newCPU, 0x01, INDIRECT_X, READ_OP, ora);
+    map_operation(newCPU, 0x21, INDIRECT_X, READ_OP, and);
+    map_operation(newCPU, 0x41, INDIRECT_X, READ_OP, eor);
+    map_operation(newCPU, 0x61, INDIRECT_X, READ_OP, adc);
+    map_operation(newCPU, 0xa1, INDIRECT_X, READ_OP, lda);   
+    map_operation(newCPU, 0xc1, INDIRECT_X, READ_OP, cmp);
+    map_operation(newCPU, 0xe1, INDIRECT_X, READ_OP, sbc);
+
+    map_operation(newCPU, 0x11, INDIRECT_Y, READ_OP, ora);
+    map_operation(newCPU, 0x31, INDIRECT_Y, READ_OP, and);
+    map_operation(newCPU, 0x51, INDIRECT_Y, READ_OP, eor);
+    map_operation(newCPU, 0x71, INDIRECT_Y, READ_OP, adc);
+    map_operation(newCPU, 0xb1, INDIRECT_Y, READ_OP, lda);   
+    map_operation(newCPU, 0xd1, INDIRECT_Y, READ_OP, cmp);
+    map_operation(newCPU, 0xf1, INDIRECT_Y, READ_OP, sbc);
+
+    map_operation(newCPU, 0xc0, IMMEDIATE, READ_OP, cpy);
+    map_operation(newCPU, 0xc4, ZEROPAGE, READ_OP, cpy);
+    map_operation(newCPU, 0xcc, ABSOLUTE, READ_OP, cpy);
+
+    map_operation(newCPU, 0xe0, IMMEDIATE, READ_OP, cpx);
+    map_operation(newCPU, 0xe4, ZEROPAGE, READ_OP, cpx);
+    map_operation(newCPU, 0xec, ABSOLUTE, READ_OP, cpx);
+
+    map_operation(newCPU, 0xa0, IMMEDIATE, READ_OP, ldy);
+    map_operation(newCPU, 0xa4, ZEROPAGE, READ_OP, ldy);
+    map_operation(newCPU, 0xb4, ZEROPAGE_X, READ_OP, ldy);
+    map_operation(newCPU, 0xac, ABSOLUTE, READ_OP, ldy);
+    map_operation(newCPU, 0xbc, ABSOLUTE_X, READ_OP, ldy);
+
+    map_operation(newCPU, 0xa2, IMMEDIATE, READ_OP, ldx);
+    map_operation(newCPU, 0xa6, ZEROPAGE, READ_OP, ldx);
+    map_operation(newCPU, 0xb6, ZEROPAGE_Y, READ_OP, ldx);
+    map_operation(newCPU, 0xae, ABSOLUTE, READ_OP, ldx);
+    map_operation(newCPU, 0xbe, ABSOLUTE_Y, READ_OP, ldx);
+
+    map_operation(newCPU, 0xa7, ZEROPAGE, READ_OP, lax);
+    map_operation(newCPU, 0xb7, ZEROPAGE_Y, READ_OP, lax);
+    map_operation(newCPU, 0xaf, ABSOLUTE, READ_OP, lax);
+    map_operation(newCPU, 0xbf, ABSOLUTE_Y, READ_OP, lax);
+    map_operation(newCPU, 0xa3, INDIRECT_X, READ_OP, lax);
+    map_operation(newCPU, 0xb3, INDIRECT_Y, READ_OP, lax);
+
+    map_operation(newCPU, 0x07, ZEROPAGE, RMW_READ_OP, slo);
+    map_operation(newCPU, 0x17, ZEROPAGE_X, RMW_READ_OP, slo);
+    map_operation(newCPU, 0x0f, ABSOLUTE, RMW_READ_OP, slo);
+    map_operation(newCPU, 0x1f, ABSOLUTE_X, RMW_READ_OP, slo);
+    map_operation(newCPU, 0x1b, ABSOLUTE_Y, RMW_READ_OP, slo);
+    map_operation(newCPU, 0x03, INDIRECT_X, RMW_READ_OP, slo);
+    map_operation(newCPU, 0x13, INDIRECT_Y, RMW_READ_OP, slo);
+
+    map_operation(newCPU, 0x27, ZEROPAGE, RMW_READ_OP, rla);
+    map_operation(newCPU, 0x37, ZEROPAGE_X, RMW_READ_OP, rla);
+    map_operation(newCPU, 0x2f, ABSOLUTE, RMW_READ_OP, rla);
+    map_operation(newCPU, 0x3f, ABSOLUTE_X, RMW_READ_OP, rla);
+    map_operation(newCPU, 0x3b, ABSOLUTE_Y, RMW_READ_OP, rla);
+    map_operation(newCPU, 0x23, INDIRECT_X, RMW_READ_OP, rla);
+    map_operation(newCPU, 0x33, INDIRECT_Y, RMW_READ_OP, rla);
+
+    map_operation(newCPU, 0x47, ZEROPAGE, RMW_READ_OP, sre);
+    map_operation(newCPU, 0x57, ZEROPAGE_X, RMW_READ_OP, sre);
+    map_operation(newCPU, 0x4f, ABSOLUTE, RMW_READ_OP, sre);
+    map_operation(newCPU, 0x5f, ABSOLUTE_X, RMW_READ_OP, sre);
+    map_operation(newCPU, 0x5b, ABSOLUTE_Y, RMW_READ_OP, sre);
+    map_operation(newCPU, 0x43, INDIRECT_X, RMW_READ_OP, sre);
+    map_operation(newCPU, 0x53, INDIRECT_Y, RMW_READ_OP, sre);
+
+    map_operation(newCPU, 0x67, ZEROPAGE, RMW_READ_OP, rra);
+    map_operation(newCPU, 0x77, ZEROPAGE_X, RMW_READ_OP, rra);
+    map_operation(newCPU, 0x6f, ABSOLUTE, RMW_READ_OP, rra);
+    map_operation(newCPU, 0x7f, ABSOLUTE_X, RMW_READ_OP, rra);
+    map_operation(newCPU, 0x7b, ABSOLUTE_Y, RMW_READ_OP, rra);
+    map_operation(newCPU, 0x63, INDIRECT_X, RMW_READ_OP, rra);
+    map_operation(newCPU, 0x73, INDIRECT_Y, RMW_READ_OP, rra);
+
+    map_operation(newCPU, 0xc7, ZEROPAGE, RMW_READ_OP, dcp);
+    map_operation(newCPU, 0xd7, ZEROPAGE_X, RMW_READ_OP, dcp);
+    map_operation(newCPU, 0xcf, ABSOLUTE, RMW_READ_OP, dcp);
+    map_operation(newCPU, 0xdf, ABSOLUTE_X, RMW_READ_OP, dcp);
+    map_operation(newCPU, 0xdb, ABSOLUTE_Y, RMW_READ_OP, dcp);
+    map_operation(newCPU, 0xc3, INDIRECT_X, RMW_READ_OP, dcp);
+    map_operation(newCPU, 0xd3, INDIRECT_Y, RMW_READ_OP, dcp);
+
+    map_operation(newCPU, 0xe7, ZEROPAGE, RMW_READ_OP, isc);
+    map_operation(newCPU, 0xf7, ZEROPAGE_X, RMW_READ_OP, isc);
+    map_operation(newCPU, 0xef, ABSOLUTE, RMW_READ_OP, isc);
+    map_operation(newCPU, 0xff, ABSOLUTE_X, RMW_READ_OP, isc);
+    map_operation(newCPU, 0xfb, ABSOLUTE_Y, RMW_READ_OP, isc);
+    map_operation(newCPU, 0xe3, INDIRECT_X, RMW_READ_OP, isc);
+    map_operation(newCPU, 0xf3, INDIRECT_Y, RMW_READ_OP, isc);
+
+    map_operation(newCPU, 0x24, ZEROPAGE, READ_OP, bit);
+    map_operation(newCPU, 0x2c, ABSOLUTE, READ_OP, bit);
+
+    map_operation(newCPU, 0x18, IMPLIED, READ_OP, clc);
+    map_operation(newCPU, 0xd8, IMPLIED, READ_OP, cld);
+    map_operation(newCPU, 0x58, IMPLIED, READ_OP, cli);
+    map_operation(newCPU, 0xb8, IMPLIED, READ_OP, clv);
+
+    map_operation(newCPU, 0x38, IMPLIED, READ_OP, sec);
+    map_operation(newCPU, 0xf8, IMPLIED, READ_OP, sed);
+    map_operation(newCPU, 0x78, IMPLIED, READ_OP, sei);
+
+    map_operation(newCPU, 0xaa, IMPLIED, READ_OP, tax);
+    map_operation(newCPU, 0xa8, IMPLIED, READ_OP, tay);
+    map_operation(newCPU, 0xba, IMPLIED, READ_OP, tsx);
+    map_operation(newCPU, 0x8a, IMPLIED, READ_OP, txa);
+    map_operation(newCPU, 0x9a, IMPLIED, READ_OP, txs);
+    map_operation(newCPU, 0x98, IMPLIED, READ_OP, tya);
+
+    map_operation(newCPU, 0xe8, IMPLIED, READ_OP, inx);
+    map_operation(newCPU, 0xc8, IMPLIED, READ_OP, iny);
+    map_operation(newCPU, 0xca, IMPLIED, READ_OP, dex);
+    map_operation(newCPU, 0x88, IMPLIED, READ_OP, dey);
+
+    map_operation(newCPU, 0x0a, ACCUMULATOR, READ_OP, asl);
+    map_operation(newCPU, 0x4a, ACCUMULATOR, READ_OP, lsr);
+    map_operation(newCPU, 0x2a, ACCUMULATOR, READ_OP, rol);
+    map_operation(newCPU, 0x6a, ACCUMULATOR, READ_OP, ror);
+
+    map_operation(newCPU, 0x04, ZEROPAGE, READ_OP, nop);
+    map_operation(newCPU, 0x44, ZEROPAGE, READ_OP, nop);
+    map_operation(newCPU, 0x64, ZEROPAGE, READ_OP, nop);
+
+    map_operation(newCPU, 0x14, ZEROPAGE_X, READ_OP, nop);
+    map_operation(newCPU, 0x34, ZEROPAGE_X, READ_OP, nop);
+    map_operation(newCPU, 0x54, ZEROPAGE_X, READ_OP, nop);
+    map_operation(newCPU, 0x74, ZEROPAGE_X, READ_OP, nop);
+    map_operation(newCPU, 0xd4, ZEROPAGE_X, READ_OP, nop);
+    map_operation(newCPU, 0xf4, ZEROPAGE_X, READ_OP, nop);
+
+    map_operation(newCPU, 0x1a, IMPLIED, READ_OP, nop);
+    map_operation(newCPU, 0x3a, IMPLIED, READ_OP, nop);
+    map_operation(newCPU, 0x5a, IMPLIED, READ_OP, nop);
+    map_operation(newCPU, 0x7a, IMPLIED, READ_OP, nop);
+    map_operation(newCPU, 0xda, IMPLIED, READ_OP, nop);
+    map_operation(newCPU, 0xea, IMPLIED, READ_OP, nop);
+    map_operation(newCPU, 0xfa, IMPLIED, READ_OP, nop);
+
+    map_operation(newCPU, 0x0c, ABSOLUTE, READ_OP, nop);
+    map_operation(newCPU, 0x1c, ABSOLUTE_X, READ_OP, nop);
+    map_operation(newCPU, 0x3c, ABSOLUTE_X, READ_OP, nop);
+    map_operation(newCPU, 0x5c, ABSOLUTE_X, READ_OP, nop);
+    map_operation(newCPU, 0x7c, ABSOLUTE_X, READ_OP, nop);
+    map_operation(newCPU, 0xdc, ABSOLUTE_X, READ_OP, nop);
+    map_operation(newCPU, 0xfc, ABSOLUTE_X, READ_OP, nop);
+
+    map_operation(newCPU, 0x80, IMMEDIATE, READ_OP, nop);
+    map_operation(newCPU, 0x82, IMMEDIATE, READ_OP, nop);
+    map_operation(newCPU, 0x89, IMMEDIATE, READ_OP, nop);
+    map_operation(newCPU, 0xc2, IMMEDIATE, READ_OP, nop);
+    map_operation(newCPU, 0xe2, IMMEDIATE, READ_OP, nop);
+
+    map_operation(newCPU, 0x06, ZEROPAGE, RMW_OP, asl);
+    map_operation(newCPU, 0x46, ZEROPAGE, RMW_OP, lsr);
+    map_operation(newCPU, 0x26, ZEROPAGE, RMW_OP, rol);
+    map_operation(newCPU, 0x66, ZEROPAGE, RMW_OP, ror);
+    map_operation(newCPU, 0xe6, ZEROPAGE, RMW_OP, inc);
+    map_operation(newCPU, 0xc6, ZEROPAGE, RMW_OP, dec);
+
+    map_operation(newCPU, 0x16, ZEROPAGE_X, RMW_OP, asl);
+    map_operation(newCPU, 0x56, ZEROPAGE_X, RMW_OP, lsr);
+    map_operation(newCPU, 0x36, ZEROPAGE_X, RMW_OP, rol);
+    map_operation(newCPU, 0x76, ZEROPAGE_X, RMW_OP, ror);
+    map_operation(newCPU, 0xf6, ZEROPAGE_X, RMW_OP, inc);
+    map_operation(newCPU, 0xd6, ZEROPAGE_X, RMW_OP, dec);
+
+    map_operation(newCPU, 0x0e, ABSOLUTE, RMW_OP, asl);
+    map_operation(newCPU, 0x4e, ABSOLUTE, RMW_OP, lsr);
+    map_operation(newCPU, 0x2e, ABSOLUTE, RMW_OP, rol);
+    map_operation(newCPU, 0x6e, ABSOLUTE, RMW_OP, ror);
+    map_operation(newCPU, 0xee, ABSOLUTE, RMW_OP, inc);
+    map_operation(newCPU, 0xce, ABSOLUTE, RMW_OP, dec);
+
+    map_operation(newCPU, 0x1e, ABSOLUTE_X, RMW_OP, asl);
+    map_operation(newCPU, 0x5e, ABSOLUTE_X, RMW_OP, lsr);
+    map_operation(newCPU, 0x3e, ABSOLUTE_X, RMW_OP, rol);
+    map_operation(newCPU, 0x7e, ABSOLUTE_X, RMW_OP, ror);
+    map_operation(newCPU, 0xfe, ABSOLUTE_X, RMW_OP, inc);
+    map_operation(newCPU, 0xde, ABSOLUTE_X, RMW_OP, dec);
+
+    map_operation(newCPU, 0x85, ZEROPAGE, WRITE_OP, sta);
+    map_operation(newCPU, 0x86, ZEROPAGE, WRITE_OP, stx);
+    map_operation(newCPU, 0x84, ZEROPAGE, WRITE_OP, sty);
+
+    map_operation(newCPU, 0x95, ZEROPAGE_X, WRITE_OP, sta);
+    map_operation(newCPU, 0x96, ZEROPAGE_Y, WRITE_OP, stx);
+    map_operation(newCPU, 0x94, ZEROPAGE_X, WRITE_OP, sty);
+
+    map_operation(newCPU, 0x8d, ABSOLUTE, WRITE_OP, sta);
+    map_operation(newCPU, 0x8e, ABSOLUTE, WRITE_OP, stx);
+    map_operation(newCPU, 0x8c, ABSOLUTE, WRITE_OP, sty);
+
+    map_operation(newCPU, 0x9d, ABSOLUTE_X, WRITE_OP, sta);
+    map_operation(newCPU, 0x99, ABSOLUTE_Y, WRITE_OP, sta);
+    map_operation(newCPU, 0x81, INDIRECT_X, WRITE_OP, sta);
+    map_operation(newCPU, 0x91, INDIRECT_Y, WRITE_OP, sta);
+
+    map_operation(newCPU, 0x87, ZEROPAGE, WRITE_OP, aax);
+    map_operation(newCPU, 0x97, ZEROPAGE_Y, WRITE_OP, aax);
+    map_operation(newCPU, 0x8f, ABSOLUTE, WRITE_OP, aax);
+    map_operation(newCPU, 0x83, INDIRECT_X, WRITE_OP, aax);
+
+    map_operation(newCPU, 0x9e, ABSOLUTE_Y, WRITE_OP, sxa);
+    map_operation(newCPU, 0x9c, ABSOLUTE_X, WRITE_OP, sya);
+
+    map_operation(newCPU, 0x10, RELATIVE, READ_OP, bpl);
+    map_operation(newCPU, 0x30, RELATIVE, READ_OP, bmi);
+    map_operation(newCPU, 0x50, RELATIVE, READ_OP, bvc);
+    map_operation(newCPU, 0x70, RELATIVE, READ_OP, bvs);
+    map_operation(newCPU, 0x90, RELATIVE, READ_OP, bcc);
+    map_operation(newCPU, 0xb0, RELATIVE, READ_OP, bcs);
+    map_operation(newCPU, 0xd0, RELATIVE, READ_OP, bne);
+    map_operation(newCPU, 0xf0, RELATIVE, READ_OP, beq);
 
     return newCPU;
 }
