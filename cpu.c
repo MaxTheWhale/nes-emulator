@@ -35,29 +35,22 @@ const char instrs[256][4] = {"BRK", "ORA", "XXX", "SLO", "DOP", "ORA", "ASL", "S
                              "BEQ", "SBC", "XXX", "ISC", "DOP", "SBC", "INC", "ISC",
                              "SED", "SBC", "NOP", "ISC", "TOP", "SBC", "INC", "ISC"};
 
-inline void setCarry(uint8_t *p) { *p |= 1; }
-inline void setZero(uint8_t *p) { *p |= 2; }
-inline void setInterrupt(uint8_t *p) { *p |= 4; }
-inline void setDecimal(uint8_t *p) { *p |= 8; }
-inline void setOverflow(uint8_t *p) { *p |= 64; }
-inline void setNegative(uint8_t *p) { *p |= 128; }
-
-inline void clearCarry(uint8_t *p) { *p &= 254; }
-inline void clearZero(uint8_t *p) { *p &= 253; }
-inline void clearInterrupt(uint8_t *p) { *p &= 251; }
-inline void clearDecimal(uint8_t *p) { *p &= 247; }
-inline void clearOverflow(uint8_t *p) { *p &= 191; }
-inline void clearNegative(uint8_t *p) { *p &= 127; }
-
-inline bool checkCarry(uint8_t p) { return (p & 1) ? true : false; }
-inline bool checkZero(uint8_t p) { return (p & 2) ? true : false; }
-inline bool checkInterrupt(uint8_t p) { return (p & 4) ? true : false; }
-inline bool checkDecimal(uint8_t p) { return (p & 8) ? true : false; }
-inline bool checkOverflow(uint8_t p) { return (p & 64) ? true : false; }
-inline bool checkNegative(uint8_t p) { return (p & 128) ? true : false; }
+// Status bitmasks
+enum { CARRY       = 0x01,
+       ZERO        = 0x02,
+       IRQ_DISABLE = 0x04,
+       DECIMAL     = 0x08,
+       OVERFLOW    = 0x40,
+       NEGATIVE    = 0x80 };
 
 struct cpu
 {
+    // External signals
+    uint16_t address;
+    bool write;
+    bool *nmi;
+    bool *irq;
+
     uint8_t accumulator;
     uint8_t x;
     uint8_t y;
@@ -66,8 +59,6 @@ struct cpu
     uint8_t dummy;
     uint8_t flags;
     uint16_t pc;
-    uint16_t address;
-    bool write;
     uint8_t *pcL;
     uint8_t *pcH;
     uint16_t ad;
@@ -75,8 +66,6 @@ struct cpu
     uint8_t *adH;
     uint8_t currentOp;
     uint8_t tick;
-    bool *nmi;
-    bool *irq;
     bool nmi_prev;
     bool nmi_pending;
     bool irq_pending;
@@ -118,26 +107,26 @@ void fetchOp(cpu *c)
 void loadRegister(cpu *c, uint8_t *reg, uint8_t value)
 {
     if (value == 0)
-        setZero(&c->flags);
+        c->flags |= ZERO;
     else
-        clearZero(&c->flags);
+        c->flags &= ~ZERO;
     if ((value & 0x80) == 0)
-        clearNegative(&c->flags);
+        c->flags &= ~NEGATIVE;
     else
-        setNegative(&c->flags);
+        c->flags |= NEGATIVE;
     *reg = value;
 }
 
 void writeValue(cpu *c, uint16_t address, uint8_t value)
 {
     if (value == 0)
-        setZero(&c->flags);
+        c->flags |= ZERO;
     else
-        clearZero(&c->flags);
+        c->flags &= ~ZERO;
     if ((value & 0x80) == 0)
-        clearNegative(&c->flags);
+        c->flags &= ~NEGATIVE;
     else
-        setNegative(&c->flags);
+        c->flags |= NEGATIVE;
     cpu_writeMemory(c, address, value);
 }
 
@@ -161,7 +150,7 @@ void fetchPCLbrk(cpu *c)
         *c->pcL = cpu_readMemory(c, 0xfffa);
     else
         *c->pcL = cpu_readMemory(c, 0xfffe);
-    setInterrupt(&c->flags);
+    c->flags |= IRQ_DISABLE;
 }
 
 void fetchADL(cpu *c)
@@ -434,128 +423,128 @@ void tya(cpu *c)
 
 void sec(cpu *c)
 {
-    setCarry(&c->flags);
+    c->flags |= CARRY;
     c->tick = 0xff;
 }
 void sei(cpu *c)
 {
-    setInterrupt(&c->flags);
+    c->flags |= IRQ_DISABLE;
     c->tick = 0xff;
 }
 void sed(cpu *c)
 {
-    setDecimal(&c->flags);
+    c->flags |= DECIMAL;
     c->tick = 0xff;
 }
 void clc(cpu *c)
 {
-    clearCarry(&c->flags);
+    c->flags &= ~CARRY;
     c->tick = 0xff;
 }
 void cli(cpu *c)
 {
-    clearInterrupt(&c->flags);
+    c->flags &= ~IRQ_DISABLE;
     c->tick = 0xff;
 }
 void cld(cpu *c)
 {
-    clearDecimal(&c->flags);
+    c->flags &= ~DECIMAL;
     c->tick = 0xff;
 }
 void clv(cpu *c)
 {
-    clearOverflow(&c->flags);
+    c->flags &= ~OVERFLOW;
     c->tick = 0xff;
 }
 void lsrAccumulator(cpu *c)
 {
     if (c->accumulator & 0x1)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     loadRegister(c, &c->accumulator, c->accumulator >> 1);
     c->tick = 0xff;
 }
 void aslAccumulator(cpu *c)
 {
     if (c->accumulator & 0x80)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     loadRegister(c, &c->accumulator, c->accumulator << 1);
     c->tick = 0xff;
 }
 void rorAccumulator(cpu *c)
 {
     uint8_t val = c->accumulator >> 1;
-    if (checkCarry(c->flags))
+    if (c->flags & CARRY)
         val |= 0x80;
     else
         val &= ~0x80;
     if (c->accumulator & 0x1)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     loadRegister(c, &c->accumulator, val);
     c->tick = 0xff;
 }
 void rolAccumulator(cpu *c)
 {
     uint8_t val = c->accumulator << 1;
-    if (checkCarry(c->flags))
+    if (c->flags & CARRY)
         val |= 0x1;
     else
         val &= ~0x1;
     if (c->accumulator & 0x80)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     loadRegister(c, &c->accumulator, val);
     c->tick = 0xff;
 }
 void lsrMemory(cpu *c)
 {
     if (c->temp & 0x1)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     writeValue(c, c->ad, c->temp >> 1);
     c->tick = 0xff;
 }
 void aslMemory(cpu *c)
 {
     if (c->temp & 0x80)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     writeValue(c, c->ad, c->temp << 1);
     c->tick = 0xff;
 }
 void rorMemory(cpu *c)
 {
     uint8_t val = c->temp >> 1;
-    if (checkCarry(c->flags))
+    if (c->flags & CARRY)
         val |= 0x80;
     else
         val &= ~0x80;
     if (c->temp & 0x1)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     writeValue(c, c->ad, val);
     c->tick = 0xff;
 }
 void rolMemory(cpu *c)
 {
     uint8_t val = c->temp << 1;
-    if (checkCarry(c->flags))
+    if (c->flags & CARRY)
         val |= 0x1;
     else
         val &= ~0x1;
     if (c->temp & 0x80)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     writeValue(c, c->ad, val);
     c->tick = 0xff;
 }
@@ -656,9 +645,9 @@ void anc(cpu *c)
 {
     loadRegister(c, &c->accumulator, (c->temp & c->accumulator));
     if (c->accumulator & 0x80)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     c->tick = 0xff;
 }
 void alr(cpu *c)
@@ -679,26 +668,26 @@ void arr(cpu *c)
     {
         if (c->accumulator & 0x40)
         {
-            setCarry(&c->flags);
-            clearOverflow(&c->flags);
+            c->flags |= CARRY;
+            c->flags &= ~OVERFLOW;
         }
         else
         {
-            clearCarry(&c->flags);
-            setOverflow(&c->flags);
+            c->flags &= ~CARRY;
+            c->flags |= OVERFLOW;
         }
     }
     else
     {
         if (c->accumulator & 0x40)
         {
-            setCarry(&c->flags);
-            setOverflow(&c->flags);
+            c->flags |= CARRY;
+            c->flags |= OVERFLOW;
         }
         else
         {
-            clearCarry(&c->flags);
-            clearOverflow(&c->flags);
+            c->flags &= ~CARRY;
+            c->flags &= ~OVERFLOW;
         }
     }
 }
@@ -728,9 +717,9 @@ void axs(cpu *c)
 {
     fetchValue(c);
     if (c->temp <= (c->accumulator & c->x))
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     loadRegister(c, &c->x, (c->accumulator & c->x) - c->temp);
     c->tick = 0xff;
 }
@@ -756,16 +745,16 @@ void oraMemory(cpu *c)
 }
 void adc(cpu *c)
 {
-    uint16_t sum = c->accumulator + c->temp + checkCarry(c->flags);
+    uint16_t sum = c->accumulator + c->temp + (c->flags & CARRY);
     uint8_t result = sum & 0xff;
     if (sum & 0x100)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     if ((c->accumulator ^ result) & (c->temp ^ result) & 0x80)
-        setOverflow(&c->flags);
+        c->flags |= OVERFLOW;
     else
-        clearOverflow(&c->flags);
+        c->flags &= ~OVERFLOW;
     loadRegister(c, &c->accumulator, result);
     c->tick = 0xff;
 }
@@ -794,49 +783,49 @@ void sbcMemory(cpu *c)
 void cmp(cpu *c)
 {
     if (c->temp <= c->accumulator)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     if (c->temp == c->accumulator)
-        setZero(&c->flags);
+        c->flags |= ZERO;
     else
-        clearZero(&c->flags);
+        c->flags &= ~ZERO;
     if ((c->accumulator - c->temp) & 0x80)
-        setNegative(&c->flags);
+        c->flags |= NEGATIVE;
     else
-        clearNegative(&c->flags);
+        c->flags &= ~NEGATIVE;
     c->tick = 0xff;
 }
 void cpx(cpu *c)
 {
     if (c->temp <= c->x)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     if (c->temp == c->x)
-        setZero(&c->flags);
+        c->flags |= ZERO;
     else
-        clearZero(&c->flags);
+        c->flags &= ~ZERO;
     if ((c->x - c->temp) & 0x80)
-        setNegative(&c->flags);
+        c->flags |= NEGATIVE;
     else
-        clearNegative(&c->flags);
+        c->flags &= ~NEGATIVE;
     c->tick = 0xff;
 }
 void cpy(cpu *c)
 {
     if (c->temp <= c->y)
-        setCarry(&c->flags);
+        c->flags |= CARRY;
     else
-        clearCarry(&c->flags);
+        c->flags &= ~CARRY;
     if (c->temp == c->y)
-        setZero(&c->flags);
+        c->flags |= ZERO;
     else
-        clearZero(&c->flags);
+        c->flags &= ~ZERO;
     if ((c->y - c->temp) & 0x80)
-        setNegative(&c->flags);
+        c->flags |= NEGATIVE;
     else
-        clearNegative(&c->flags);
+        c->flags &= ~NEGATIVE;
     c->tick = 0xff;
 }
 void cmpImmediate(cpu *c)
@@ -873,17 +862,17 @@ void bit(cpu *c)
 {
     uint8_t val = cpu_readMemory(c, c->ad);
     if (val & c->accumulator)
-        clearZero(&c->flags);
+        c->flags &= ~ZERO;
     else
-        setZero(&c->flags);
+        c->flags |= ZERO;
     if (val & 0x80)
-        setNegative(&c->flags);
+        c->flags |= NEGATIVE;
     else
-        clearNegative(&c->flags);
+        c->flags &= ~NEGATIVE;
     if (val & 0x40)
-        setOverflow(&c->flags);
+        c->flags |= OVERFLOW;
     else
-        clearOverflow(&c->flags);
+        c->flags &= ~OVERFLOW;
     c->tick = 0xff;
 }
 void sta(cpu *c)
@@ -964,7 +953,7 @@ void sre(cpu *c)
 }
 void beq(cpu *c)
 {
-    if (checkZero(c->flags))
+    if (c->flags & ZERO)
     {
         *c->pcL += c->temp;
     }
@@ -976,7 +965,7 @@ void beq(cpu *c)
 }
 void bne(cpu *c)
 {
-    if (!checkZero(c->flags))
+    if (!(c->flags & ZERO))
     {
         *c->pcL += c->temp;
     }
@@ -988,7 +977,7 @@ void bne(cpu *c)
 }
 void bmi(cpu *c)
 {
-    if (checkNegative(c->flags))
+    if (c->flags & NEGATIVE)
     {
         *c->pcL += c->temp;
     }
@@ -1000,7 +989,7 @@ void bmi(cpu *c)
 }
 void bpl(cpu *c)
 {
-    if (!checkNegative(c->flags))
+    if (!(c->flags & NEGATIVE))
     {
         *c->pcL += c->temp;
     }
@@ -1012,7 +1001,7 @@ void bpl(cpu *c)
 }
 void bcs(cpu *c)
 {
-    if (checkCarry(c->flags))
+    if (c->flags & CARRY)
     {
         *c->pcL += c->temp;
     }
@@ -1024,7 +1013,7 @@ void bcs(cpu *c)
 }
 void bcc(cpu *c)
 {
-    if (!checkCarry(c->flags))
+    if (!(c->flags & CARRY))
     {
         *c->pcL += c->temp;
     }
@@ -1036,7 +1025,7 @@ void bcc(cpu *c)
 }
 void bvs(cpu *c)
 {
-    if (checkOverflow(c->flags))
+    if (c->flags & OVERFLOW)
     {
         *c->pcL += c->temp;
     }
@@ -1048,7 +1037,7 @@ void bvs(cpu *c)
 }
 void bvc(cpu *c)
 {
-    if (!checkOverflow(c->flags))
+    if (!(c->flags & OVERFLOW))
     {
         *c->pcL += c->temp;
     }
@@ -1585,7 +1574,7 @@ cpu *cpu_create()
 
 void cpu_reset(cpu *c)
 {
-    setInterrupt(&c->flags);
+    c->flags |= IRQ_DISABLE;
     *c->pcL = cpu_readMemory(c, 0xfffc);
     *c->pcH = cpu_readMemory(c, 0xfffd);
 }
@@ -1597,23 +1586,23 @@ void cpu_printState(cpu *c)
     printf(" A:%02hhx", c->accumulator);
     printf(" X:%02hhx", c->x);
     printf(" Y:%02hhx", c->y);
-    if (checkNegative(c->flags))
+    if (c->flags & NEGATIVE)
         printf(" N");
     else
         printf(" n");
-    if (checkOverflow(c->flags))
+    if (c->flags & OVERFLOW)
         printf("V");
     else
         printf("v");
-    if (checkInterrupt(c->flags))
+    if (c->flags & IRQ_DISABLE)
         printf("I");
     else
         printf("i");
-    if (checkZero(c->flags))
+    if (c->flags & ZERO)
         printf("Z");
     else
         printf("z");
-    if (checkCarry(c->flags))
+    if (c->flags & CARRY)
         printf("C ");
     else
         printf("c ");
