@@ -2,33 +2,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-enum
-{
-    PPUCTRL,
-    PPUMASK,
-    PPUSTATUS,
-    OAMADDR,
-    OAMDATA,
-    PPUSCROLL,
-    PPUADDR,
-    PPUDATA
-};
-enum
-{
-    FINE_Y = 0x7000,
-    NAMETABLE = 0x0c00,
-    NAMETABLE_Y = 0x0800,
-    NAMETABLE_X = 0x0400,
-    COARSE_Y = 0x03e0,
-    COARSE_X = 0x001f,
-    ATTR_Y = 0x0380,
-    ATTR_X = 0x001c
-};
+// Registers
+enum { PPUCTRL, PPUMASK, PPUSTATUS, OAMADDR, OAMDATA, PPUSCROLL, PPUADDR, PPUDATA };
+
+// PPUMASK bitmasks
+enum { GREYSCALE   = 0x01,
+       LEFT_BG     = 0x02,
+       LEFT_SPRITE = 0x04,
+       BG_EN       = 0x08,
+       SPRITE_EN   = 0x10,
+       RENDER_EN   = 0x18,
+       R_EMPHASIS  = 0x20,
+       G_EMPHASIS  = 0x40,
+       B_EMPHASIS  = 0x80 };
+
+// v/t register bitmasks     
+enum { FINE_Y      = 0x7000,
+       NAMETABLE   = 0x0c00,
+       NAMETABLE_Y = 0x0800,
+       NAMETABLE_X = 0x0400,
+       COARSE_Y    = 0x03e0,
+       COARSE_X    = 0x001f,
+       ATTR_Y      = 0x0380,
+       ATTR_X      = 0x001c };
 
 struct ppu
 {
+    // External signals
     uint16_t *cpu_address;
     uint16_t ppu_address;
+    bool *write;
+    bool nmi;
+
     uint16_t address_v;
     uint16_t address_temp;
     uint8_t fine_x;
@@ -59,19 +64,12 @@ struct ppu
     bool sprite_latch_low[8];
     bool sprite_latch_high[8];
     bool sprite_priority[8];
-    bool *write;
     bool write_prev;
     bool *reg_access;
     bool reg_access_prev;
     bool status_read;
     bool data_read;
-    bool background_en;
-    bool sprite_en;
-    bool rendering_en;
-    bool bg_clip;
-    bool sprite_clip;
     bool vblank;
-    bool nmi;
     bool nmi_occurred;
     bool odd_frame;
     bool write_latch;
@@ -118,10 +116,16 @@ ppu *ppu_create()
     return newPPU;
 }
 
-void ppu_mapMemory(ppu *p, uint16_t address, uint8_t *pointer)
+void ppu_mapMemory(ppu *p, uint16_t address, uint8_t *start, uint16_t size, uint16_t mirrors)
 {
-    if (address < 0x3f00)
-        p->memory[address] = pointer;
+    for (int m = 0; m < mirrors; m++)
+    {
+        for (int n = 0; n < size; n++)
+        {
+            if (address + (m * size) + n < 0x3f00)
+                p->memory[address + (m * size) + n] = start + n;
+        }
+    }
 }
 void ppu_mapRW(ppu *p, bool *pointer)
 {
@@ -248,7 +252,7 @@ uint8_t flipByte(uint8_t data)
 uint16_t calcPixel(ppu *p)
 {
     uint8_t bg_palette = 0;
-    if (p->background_en && !(p->bg_clip && p->dot <= 8))
+    if ((p->PPUMASK & BG_EN) && !(!(p->PPUMASK & LEFT_BG) && p->dot <= 8))
     {
         if (p->pattern_shift_low & (0x8000 >> p->fine_x))
             bg_palette |= 1;
@@ -262,7 +266,7 @@ uint16_t calcPixel(ppu *p)
                 bg_palette |= 8;
         }
     }
-    if (p->sprite_en && !(p->sprite_clip && p->dot <= 8) && p->scanline > 0)
+    if ((p->PPUMASK & SPRITE_EN) && !(!(p->PPUMASK & LEFT_SPRITE) && p->dot <= 8) && p->scanline > 0)
     {
         uint8_t sprite_palette = 0x10;
         for (int i = p->sprites_on_line - 1; i >= 0; i--)
@@ -333,14 +337,6 @@ void checkRegisters(ppu *p)
                 p->vram_inc = (p->PPUCTRL & 0x4) ? 32 : 1;
                 p->sprite_base = (p->PPUCTRL & 0x8) ? 0x1000 : 0;
                 p->bg_base = (p->PPUCTRL & 0x10) ? 0x1000 : 0;
-                break;
-
-            case PPUMASK:
-                p->bg_clip = (p->PPUMASK & 0x2) ? false : true;
-                p->sprite_clip = (p->PPUMASK & 0x4) ? false : true;
-                p->background_en = (p->PPUMASK & 0x8);
-                p->sprite_en = (p->PPUMASK & 0x10);
-                p->rendering_en = p->sprite_en || p->background_en;
                 break;
 
             case OAMDATA:
@@ -670,7 +666,7 @@ uint16_t ppu_executeCycle(ppu *p)
 
     checkRegisters(p);
 
-    if (p->rendering_en && !p->vblank)
+    if ((p->PPUMASK & RENDER_EN) && !p->vblank)
     {
         if ((p->dot >= 2 && p->dot <= 257) || (p->dot >= 322 && p->dot <= 337))
         {

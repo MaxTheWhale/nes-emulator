@@ -15,32 +15,23 @@ FILE *fopenCheck(char *file, char *mode)
 
 void mapCPU_PPU(nes *n)
 {
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < 0x800; j++)
-        {
-            cpu_mapMemory(n->cpu, (i * 0x800) + j, n->ram + j, false);
-            cpu_mapMemory(n->cpu, (i * 0x800) + j, n->ram + j, true);
-        }
-    }
+    cpu_mapMemory(n->cpu, 0x0000, n->ram, 0x800, 4, READ_WRITE);
     cpu_mapNMI(n->cpu, ppu_getNMI(n->ppu));
     for (int i = 0; i < 0x2000; i += 8)
     {
-        cpu_mapMemory(n->cpu, 0x2000 + i, ppu_getPPUCTRL(n->ppu), true);
-        cpu_mapMemory(n->cpu, 0x2001 + i, ppu_getPPUMASK(n->ppu), true);
-        cpu_mapMemory(n->cpu, 0x2002 + i, ppu_getPPUSTATUS(n->ppu), false);
-        cpu_mapMemory(n->cpu, 0x2003 + i, ppu_getOAMADDR(n->ppu), true);
-        cpu_mapMemory(n->cpu, 0x2004 + i, ppu_getOAMDATA(n->ppu), false);
-        cpu_mapMemory(n->cpu, 0x2004 + i, ppu_getOAMDATA(n->ppu), true);
-        cpu_mapMemory(n->cpu, 0x2005 + i, ppu_getPPUSCROLL(n->ppu), true);
-        cpu_mapMemory(n->cpu, 0x2006 + i, ppu_getPPUADDR(n->ppu), true);
-        cpu_mapMemory(n->cpu, 0x2007 + i, ppu_getPPUDATA(n->ppu), false);
-        cpu_mapMemory(n->cpu, 0x2007 + i, ppu_getPPUDATA(n->ppu), true);
+        cpu_mapMemory(n->cpu, 0x2000 + i, ppu_getPPUCTRL(n->ppu), 1, 1, WRITE);
+        cpu_mapMemory(n->cpu, 0x2001 + i, ppu_getPPUMASK(n->ppu), 1, 1, WRITE);
+        cpu_mapMemory(n->cpu, 0x2002 + i, ppu_getPPUSTATUS(n->ppu), 1, 1, READ);
+        cpu_mapMemory(n->cpu, 0x2003 + i, ppu_getOAMADDR(n->ppu), 1, 1, WRITE);
+        cpu_mapMemory(n->cpu, 0x2004 + i, ppu_getOAMDATA(n->ppu), 1, 1, READ_WRITE);
+        cpu_mapMemory(n->cpu, 0x2005 + i, ppu_getPPUSCROLL(n->ppu), 1, 1, WRITE);
+        cpu_mapMemory(n->cpu, 0x2006 + i, ppu_getPPUADDR(n->ppu), 1, 1, WRITE);
+        cpu_mapMemory(n->cpu, 0x2007 + i, ppu_getPPUDATA(n->ppu), 1, 1, READ_WRITE);
     }
-    cpu_mapMemory(n->cpu, 0x4014, &n->dma_page, true);
-    cpu_mapMemory(n->cpu, 0x4016, &n->pad_latch, true);
-    cpu_mapMemory(n->cpu, 0x4016, &n->pad1_port, false);
-    cpu_mapMemory(n->cpu, 0x4017, &n->pad2_port, false);
+    cpu_mapMemory(n->cpu, 0x4014, &n->dma_page, 1, 1, WRITE);
+    cpu_mapMemory(n->cpu, 0x4016, &n->pad_latch, 1, 1, WRITE);
+    cpu_mapMemory(n->cpu, 0x4016, &n->pad1_port, 1, 1, READ);
+    cpu_mapMemory(n->cpu, 0x4017, &n->pad2_port, 1, 1, READ);
     n->write = cpu_getRW(n->cpu);
     ppu_mapRW(n->ppu, n->write);
     n->address = cpu_getAddress(n->cpu);
@@ -60,47 +51,28 @@ void nes_loadROM(nes *n, char *rom)
     {
         uint8_t *prg = malloc(0x4000);
         fread(prg, 0x1000, 4, f);
-        for (int i = 0; i < 0x4000; i++)
-        {
-            cpu_mapMemory(n->cpu, 0x8000 + i, prg + i, false);
-            cpu_mapMemory(n->cpu, 0xc000 + i, prg + i, false);
-        }
+        cpu_mapMemory(n->cpu, 0x8000, prg, 0x4000, 2, READ);
     }
     else if (header[4] == 2)
     {
         uint8_t *prg = malloc(0x8000);
         fread(prg, 0x1000, 8, f);
-        for (int i = 0; i < 0x8000; i++)
-        {
-            cpu_mapMemory(n->cpu, 0x8000 + i, prg + i, false);
-        }
+        cpu_mapMemory(n->cpu, 0x8000, prg, 0x8000, 1, READ);
     }
     if (header[5] == 1)
     {
         uint8_t *chr = malloc(0x2000);
         fread(chr, 0x1000, 2, f);
-        for (int i = 0; i < 0x2000; i++)
-        {
-            ppu_mapMemory(n->ppu, 0x0000 + i, chr + i);
-        }
+        ppu_mapMemory(n->ppu, 0x0000, chr, 0x2000, 1);
     }
     if (header[6] & 0x1)
     {
-        for (int i = 0; i < 0x800; i++)
-        {
-            ppu_mapMemory(n->ppu, 0x2000 + i, &n->vram[i]);
-            ppu_mapMemory(n->ppu, 0x2800 + i, &n->vram[i]);
-        }
+        ppu_mapMemory(n->ppu, 0x2000, n->vram, 0x800, 2);
     }
     else
     {
-        for (int i = 0; i < 0x400; i++)
-        {
-            ppu_mapMemory(n->ppu, 0x2000 + i, &n->vram[i]);
-            ppu_mapMemory(n->ppu, 0x2400 + i, &n->vram[i]);
-            ppu_mapMemory(n->ppu, 0x2800 + i, &n->vram[0x400 + i]);
-            ppu_mapMemory(n->ppu, 0x2c00 + i, &n->vram[0x400 + i]);
-        }
+        ppu_mapMemory(n->ppu, 0x2000, n->vram, 0x400, 2);
+        ppu_mapMemory(n->ppu, 0x2800, n->vram + 0x400, 0x400, 2);
     }
     fclose(f);
 }

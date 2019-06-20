@@ -5,7 +5,7 @@ struct ppu;
 typedef struct ppu ppu;
 
 ppu *ppu_create();
-void ppu_mapMemory(ppu *p, uint16_t address, uint8_t *pointer);
+void ppu_mapMemory(ppu *p, uint16_t address, uint8_t *start, uint16_t size, uint16_t mirrors);
 void ppu_mapRW(ppu *p, bool *pointer);
 void ppu_mapRegAccess(ppu *p, bool *pointer);
 void ppu_mapAddress(ppu *p, uint16_t *pointer);

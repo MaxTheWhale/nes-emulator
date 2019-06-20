@@ -1094,15 +1094,21 @@ void stuck(cpu *c)
     c->tick = 0;
 }
 
-void cpu_mapMemory(cpu *c, uint16_t address, uint8_t *pointer, bool write)
+void cpu_mapMemory(cpu *c, uint16_t address, uint8_t *start, uint16_t size, uint16_t mirrors, enum access_t rw)
 {
-    if (write)
+    for (int m = 0; m < mirrors; m++)
     {
-        c->memory_write[address] = pointer;
-    }
-    else
-    {
-        c->memory_read[address] = pointer;
+        for (int n = 0; n < size; n++)
+        {
+            if (rw == READ || rw == READ_WRITE)
+            {
+                c->memory_read[address + (m * size) + n] = start + n;
+            }
+            if (rw == WRITE || rw == READ_WRITE)
+            {
+                c->memory_write[address + (m * size) + n] = start + n;
+            }
+        }
     }
 }
 void cpu_mapNMI(cpu *c, bool *pointer)
