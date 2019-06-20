@@ -1,3 +1,6 @@
+#ifndef __NES_H
+#define __NES_H
+
 #include "cpu.h"
 #include "ppu.h"
 
@@ -35,3 +38,5 @@ void nes_emulateFrame(nes *n);
 void nes_loadROM(nes *n, char *rom);
 void nes_updatePadState(nes *n, uint8_t state);
 void nes_loadPalette(nes *n, char *palette);
+
+#endif

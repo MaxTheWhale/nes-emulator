@@ -1,3 +1,6 @@
+#ifndef __PPU_H
+#define __PPU_H
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -22,3 +25,5 @@ uint8_t *ppu_getPPUADDR(ppu *p);
 uint8_t *ppu_getPPUDATA(ppu *p);
 void ppu_print(ppu *p);
 uint16_t ppu_executeCycle(ppu *p);
+
+#endif
