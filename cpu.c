@@ -40,16 +40,16 @@ enum AddressMode_t {
     ACCUMULATOR,
     RELATIVE,
     IMMEDIATE,
-    ABSOLUTE,
     ZEROPAGE,
     ZEROPAGE_X,
     ZEROPAGE_Y,
+    ABSOLUTE,
     ABSOLUTE_X,
     ABSOLUTE_Y,
     INDIRECT_X,
     INDIRECT_Y
 };
-enum InstructionMode_t { READ_OP, WRITE_OP, RMW_OP, RMW_READ_OP, OTHER_OP };
+enum InstructionMode_t { STD_OP, RMW_OP, RMW_COMBO_OP };
 
 struct cpu {
     // External signals
@@ -97,6 +97,7 @@ void cpu_writeMemory(cpu* c, uint16_t address, uint8_t value) {
     *c->memory_write[address] = value;
 }
 
+
 void fetchOp(cpu* c) {
     c->currentOp = cpu_readMemory(c, c->pc);
     c->tick = 0;
@@ -106,6 +107,9 @@ void fetchOp(cpu* c) {
     } else {
         c->pc++;
     }
+}
+void stuck(cpu* c) {
+    c->tick = 0;
 }
 
 void loadRegister(cpu* c, uint8_t* reg, uint8_t value) {
@@ -307,39 +311,13 @@ void accumulatorOp(cpu* c) {
     c->ops[c->currentOp][++c->tick](c);
     loadRegister(c, &c->accumulator, c->temp);
 }
-
-void jmp(cpu* c) {
-    *c->pcH = cpu_readMemory(c, c->pc);
-    *c->pcL = *c->adL;
-}
-void jmpIndirect(cpu* c) {
-    (*c->adL)++;
-    *c->pcH = cpu_readMemory(c, c->ad);
-    *c->pcL = c->temp;
-}
-void pla(cpu* c) {
-    loadRegister(c, &c->accumulator, cpu_readMemory(c, 0x100 + c->stackPointer));
-}
-void plp(cpu* c) {
-    c->flags = cpu_readMemory(c, 0x100 + c->stackPointer);
-}
-void pha(cpu* c) {
-    cpu_writeMemory(c, 0x100 + c->stackPointer, c->accumulator);
-    c->stackPointer--;
-}
-void php(cpu* c) {
-    cpu_writeMemory(c, 0x100 + c->stackPointer, c->flags | 0x30);
-    c->stackPointer--;
-}
 void ins(cpu* c) {
     c->stackPointer++;
 }
+
+
 void nop(cpu* c) {
     c->temp = cpu_readMemory(c, c->pc);
-}
-void dop(cpu* c) {
-    c->temp = cpu_readMemory(c, c->pc);
-    c->pc++;
 }
 void tax(cpu* c) {
     loadRegister(c, &c->x, c->accumulator);
@@ -439,62 +417,11 @@ void ldx(cpu* c) {
 void ldy(cpu* c) {
     loadRegister(c, &c->y, c->temp);
 }
-void lax(cpu* c) {
-    loadRegister(c, &c->accumulator, c->temp);
-    loadRegister(c, &c->x, c->temp);
-}
 void eor(cpu* c) {
     loadRegister(c, &c->accumulator, (c->temp ^ c->accumulator));
 }
-void and (cpu * c) {
+void and(cpu * c) {
     loadRegister(c, &c->accumulator, (c->temp & c->accumulator));
-}
-void anc(cpu* c) {
-    and(c);
-    if (c->accumulator & 0x80)
-        c->flags |= CARRY;
-    else
-        c->flags &= ~CARRY;
-}
-void alr(cpu* c) {
-    and(c);
-    c->temp = c->accumulator;
-    lsr(c);
-    loadRegister(c, &c->accumulator, c->temp);
-}
-void arr(cpu* c) {
-    and(c);
-    c->temp = c->accumulator;
-    ror(c);
-    loadRegister(c, &c->accumulator, c->temp);
-    if (c->accumulator & 0x20) {
-        if (c->accumulator & 0x40) {
-            c->flags |= CARRY;
-            c->flags &= ~OVERFLOW;
-        } else {
-            c->flags &= ~CARRY;
-            c->flags |= OVERFLOW;
-        }
-    } else {
-        if (c->accumulator & 0x40) {
-            c->flags |= CARRY;
-            c->flags |= OVERFLOW;
-        } else {
-            c->flags &= ~CARRY;
-            c->flags &= ~OVERFLOW;
-        }
-    }
-}
-void atx(cpu* c) {
-    loadRegister(c, &c->accumulator, c->temp);
-    loadRegister(c, &c->x, c->accumulator);
-}
-void axs(cpu* c) {
-    if (c->temp <= (c->accumulator & c->x))
-        c->flags |= CARRY;
-    else
-        c->flags &= ~CARRY;
-    loadRegister(c, &c->x, (c->accumulator & c->x) - c->temp);
 }
 void ora(cpu* c) {
     loadRegister(c, &c->accumulator, (c->temp | c->accumulator));
@@ -579,65 +506,14 @@ void sta(cpu* c) {
 void stx(cpu* c) {
     cpu_writeMemory(c, c->ad, c->x);
 }
-void aax(cpu* c) {
-    cpu_writeMemory(c, c->ad, c->accumulator & c->x);
-}
 void sty(cpu* c) {
     cpu_writeMemory(c, c->ad, c->y);
-}
-void sya(cpu* c) {
-    uint8_t result = c->y & (*c->adH + 1);
-    if (cpu_readMemory(c, c->pc - 1) != *c->adH)
-        *c->adH = result;
-    cpu_writeMemory(c, c->ad, result);
-}
-void sxa(cpu* c) {
-    uint8_t result = c->x & (*c->adH + 1);
-    if (cpu_readMemory(c, c->pc - 1) != *c->adH)
-        *c->adH = result;
-    cpu_writeMemory(c, c->ad, result);
 }
 void dec(cpu* c) {
     c->temp--;
 }
 void inc(cpu* c) {
     c->temp++;
-}
-void dcp(cpu* c) {
-    dec(c);
-    writeValue(c, c->ad, c->temp);
-    readAddress(c);
-    cmp(c);
-}
-void isc(cpu* c) {
-    inc(c);
-    writeValue(c, c->ad, c->temp);
-    readAddress(c);
-    sbc(c);
-}
-void rla(cpu* c) {
-    rol(c);
-    writeValue(c, c->ad, c->temp);
-    readAddress(c);
-    and(c);
-}
-void rra(cpu* c) {
-    ror(c);
-    writeValue(c, c->ad, c->temp);
-    readAddress(c);
-    adc(c);
-}
-void slo(cpu* c) {
-    asl(c);
-    writeValue(c, c->ad, c->temp);
-    readAddress(c);
-    ora(c);
-}
-void sre(cpu* c) {
-    lsr(c);
-    writeValue(c, c->ad, c->temp);
-    readAddress(c);
-    eor(c);
 }
 void beq(cpu* c) {
     if (c->flags & ZERO)
@@ -705,9 +581,131 @@ void branch(cpu* c) {
         }
     }
 }
+void jmp(cpu* c) {
+    *c->pcH = cpu_readMemory(c, c->pc);
+    *c->pcL = *c->adL;
+}
+void jmpIndirect(cpu* c) {
+    (*c->adL)++;
+    *c->pcH = cpu_readMemory(c, c->ad);
+    *c->pcL = c->temp;
+}
+void pla(cpu* c) {
+    loadRegister(c, &c->accumulator, cpu_readMemory(c, 0x100 + c->stackPointer));
+}
+void plp(cpu* c) {
+    c->flags = cpu_readMemory(c, 0x100 + c->stackPointer);
+}
+void pha(cpu* c) {
+    cpu_writeMemory(c, 0x100 + c->stackPointer, c->accumulator);
+    c->stackPointer--;
+}
+void php(cpu* c) {
+    cpu_writeMemory(c, 0x100 + c->stackPointer, c->flags | 0x30);
+    c->stackPointer--;
+}
 
-void stuck(cpu* c) {
-    c->tick = 0;
+void lax(cpu* c) {
+    loadRegister(c, &c->accumulator, c->temp);
+    loadRegister(c, &c->x, c->temp);
+}
+
+void anc(cpu* c) {
+    and(c);
+    if (c->accumulator & 0x80)
+        c->flags |= CARRY;
+    else
+        c->flags &= ~CARRY;
+}
+void alr(cpu* c) {
+    and(c);
+    c->temp = c->accumulator;
+    lsr(c);
+    loadRegister(c, &c->accumulator, c->temp);
+}
+void arr(cpu* c) {
+    and(c);
+    c->temp = c->accumulator;
+    ror(c);
+    loadRegister(c, &c->accumulator, c->temp);
+    if (c->accumulator & 0x40) {
+        c->flags |= CARRY;
+        if (c->accumulator & 0x20)
+            c->flags &= ~OVERFLOW;
+        else
+            c->flags |= OVERFLOW;
+    } else {
+        c->flags &= ~CARRY;
+        if (c->accumulator & 0x20)
+            c->flags |= OVERFLOW;
+        else
+            c->flags &= ~OVERFLOW;
+    }
+}
+void atx(cpu* c) {
+    loadRegister(c, &c->accumulator, c->temp);
+    loadRegister(c, &c->x, c->accumulator);
+}
+void axs(cpu* c) {
+    if (c->temp <= (c->accumulator & c->x))
+        c->flags |= CARRY;
+    else
+        c->flags &= ~CARRY;
+    loadRegister(c, &c->x, (c->accumulator & c->x) - c->temp);
+}
+
+void sya(cpu* c) {
+    uint8_t result = c->y & (*c->adH + 1);
+    if (cpu_readMemory(c, c->pc - 1) != *c->adH)
+        *c->adH = result;
+    cpu_writeMemory(c, c->ad, result);
+}
+void sxa(cpu* c) {
+    uint8_t result = c->x & (*c->adH + 1);
+    if (cpu_readMemory(c, c->pc - 1) != *c->adH)
+        *c->adH = result;
+    cpu_writeMemory(c, c->ad, result);
+}
+
+void aax(cpu* c) {
+    cpu_writeMemory(c, c->ad, c->accumulator & c->x);
+}
+
+void dcp(cpu* c) {
+    dec(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    cmp(c);
+}
+void isc(cpu* c) {
+    inc(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    sbc(c);
+}
+void rla(cpu* c) {
+    rol(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    and(c);
+}
+void rra(cpu* c) {
+    ror(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    adc(c);
+}
+void slo(cpu* c) {
+    asl(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    ora(c);
+}
+void sre(cpu* c) {
+    lsr(c);
+    writeValue(c, c->ad, c->temp);
+    readAddress(c);
+    eor(c);
 }
 
 void cpu_mapMemory(cpu* c,
@@ -825,7 +823,7 @@ void map_operation(cpu* c,
             c->ops[opcode][op_offset + 1] = writeOp;
             c->ops[opcode][op_offset + 2] = op;
             break;
-        case RMW_READ_OP:
+        case RMW_COMBO_OP:
             c->ops[opcode][op_offset - 1] = readAddress;
             c->ops[opcode][op_offset] = writeAddress;
             c->ops[opcode][op_offset + 1] = op;
@@ -862,6 +860,7 @@ cpu* cpu_create() {
         }
     }
 
+    // BRK
     newCPU->ops[0x00][1] = fetchValue;
     newCPU->ops[0x00][2] = pushPCH;
     newCPU->ops[0x00][3] = pushPCL;
@@ -869,316 +868,287 @@ cpu* cpu_create() {
     newCPU->ops[0x00][5] = fetchPCLbrk;
     newCPU->ops[0x00][6] = fetchPCHbrk;
 
+    // JSR
     newCPU->ops[0x20][1] = fetchADL;
     newCPU->ops[0x20][2] = readStack;
     newCPU->ops[0x20][3] = pushPCH;
     newCPU->ops[0x20][4] = pushPCL;
     newCPU->ops[0x20][5] = jmp;
 
+    // JMP indirect
     newCPU->ops[0x6c][1] = fetchADL;
     newCPU->ops[0x6c][2] = fetchADH;
     newCPU->ops[0x6c][3] = readAddress;
     newCPU->ops[0x6c][4] = jmpIndirect;
 
+    // PLP
     newCPU->ops[0x28][1] = readValue;
     newCPU->ops[0x28][2] = ins;
     newCPU->ops[0x28][3] = plp;
 
+    // PLA
     newCPU->ops[0x68][1] = readValue;
     newCPU->ops[0x68][2] = ins;
     newCPU->ops[0x68][3] = pla;
 
+    // PHA
     newCPU->ops[0x48][1] = readValue;
     newCPU->ops[0x48][2] = pha;
 
+    // PHP
     newCPU->ops[0x08][1] = readValue;
     newCPU->ops[0x08][2] = php;
 
+    // JMP
     newCPU->ops[0x4c][1] = fetchADL;
     newCPU->ops[0x4c][2] = jmp;
 
+    // RTI
     newCPU->ops[0x40][1] = fetchValue;
     newCPU->ops[0x40][2] = ins;
     newCPU->ops[0x40][3] = pullFlags;
     newCPU->ops[0x40][4] = pullPCL;
     newCPU->ops[0x40][5] = rtiPullPCH;
 
+    // RTS
     newCPU->ops[0x60][1] = fetchValue;
     newCPU->ops[0x60][2] = ins;
     newCPU->ops[0x60][3] = pullPCL;
     newCPU->ops[0x60][4] = pullPCH;
     newCPU->ops[0x60][5] = incPC;
 
-    map_operation(newCPU, 0x09, IMMEDIATE, READ_OP, ora);
-    map_operation(newCPU, 0x29, IMMEDIATE, READ_OP, and);
-    map_operation(newCPU, 0x49, IMMEDIATE, READ_OP, eor);
-    map_operation(newCPU, 0x69, IMMEDIATE, READ_OP, adc);
-    map_operation(newCPU, 0xa9, IMMEDIATE, READ_OP, lda);
-    map_operation(newCPU, 0xc9, IMMEDIATE, READ_OP, cmp);
-    map_operation(newCPU, 0xe9, IMMEDIATE, READ_OP, sbc);
-    map_operation(newCPU, 0xeb, IMMEDIATE, READ_OP, sbc);
-
-    map_operation(newCPU, 0x0b, IMMEDIATE, READ_OP, anc);
-    map_operation(newCPU, 0x2b, IMMEDIATE, READ_OP, anc);
-    map_operation(newCPU, 0x4b, IMMEDIATE, READ_OP, alr);
-    map_operation(newCPU, 0x6b, IMMEDIATE, READ_OP, arr);
-    map_operation(newCPU, 0xab, IMMEDIATE, READ_OP, atx);
-    map_operation(newCPU, 0xcb, IMMEDIATE, READ_OP, axs);
-
-    map_operation(newCPU, 0x05, ZEROPAGE, READ_OP, ora);
-    map_operation(newCPU, 0x25, ZEROPAGE, READ_OP, and);
-    map_operation(newCPU, 0x45, ZEROPAGE, READ_OP, eor);
-    map_operation(newCPU, 0x65, ZEROPAGE, READ_OP, adc);
-    map_operation(newCPU, 0xa5, ZEROPAGE, READ_OP, lda);
-    map_operation(newCPU, 0xc5, ZEROPAGE, READ_OP, cmp);
-    map_operation(newCPU, 0xe5, ZEROPAGE, READ_OP, sbc);
-
-    map_operation(newCPU, 0x15, ZEROPAGE_X, READ_OP, ora);
-    map_operation(newCPU, 0x35, ZEROPAGE_X, READ_OP, and);
-    map_operation(newCPU, 0x55, ZEROPAGE_X, READ_OP, eor);
-    map_operation(newCPU, 0x75, ZEROPAGE_X, READ_OP, adc);
-    map_operation(newCPU, 0xb5, ZEROPAGE_X, READ_OP, lda);
-    map_operation(newCPU, 0xd5, ZEROPAGE_X, READ_OP, cmp);
-    map_operation(newCPU, 0xf5, ZEROPAGE_X, READ_OP, sbc);
-
-    map_operation(newCPU, 0x0d, ABSOLUTE, READ_OP, ora);
-    map_operation(newCPU, 0x2d, ABSOLUTE, READ_OP, and);
-    map_operation(newCPU, 0x4d, ABSOLUTE, READ_OP, eor);
-    map_operation(newCPU, 0x6d, ABSOLUTE, READ_OP, adc);
-    map_operation(newCPU, 0xad, ABSOLUTE, READ_OP, lda);
-    map_operation(newCPU, 0xcd, ABSOLUTE, READ_OP, cmp);
-    map_operation(newCPU, 0xed, ABSOLUTE, READ_OP, sbc);
-
-    map_operation(newCPU, 0x1d, ABSOLUTE_X, READ_OP, ora);
-    map_operation(newCPU, 0x3d, ABSOLUTE_X, READ_OP, and);
-    map_operation(newCPU, 0x5d, ABSOLUTE_X, READ_OP, eor);
-    map_operation(newCPU, 0x7d, ABSOLUTE_X, READ_OP, adc);
-    map_operation(newCPU, 0xbd, ABSOLUTE_X, READ_OP, lda);
-    map_operation(newCPU, 0xdd, ABSOLUTE_X, READ_OP, cmp);
-    map_operation(newCPU, 0xfd, ABSOLUTE_X, READ_OP, sbc);
-
-    map_operation(newCPU, 0x19, ABSOLUTE_Y, READ_OP, ora);
-    map_operation(newCPU, 0x39, ABSOLUTE_Y, READ_OP, and);
-    map_operation(newCPU, 0x59, ABSOLUTE_Y, READ_OP, eor);
-    map_operation(newCPU, 0x79, ABSOLUTE_Y, READ_OP, adc);
-    map_operation(newCPU, 0xb9, ABSOLUTE_Y, READ_OP, lda);
-    map_operation(newCPU, 0xd9, ABSOLUTE_Y, READ_OP, cmp);
-    map_operation(newCPU, 0xf9, ABSOLUTE_Y, READ_OP, sbc);
-
-    map_operation(newCPU, 0x01, INDIRECT_X, READ_OP, ora);
-    map_operation(newCPU, 0x21, INDIRECT_X, READ_OP, and);
-    map_operation(newCPU, 0x41, INDIRECT_X, READ_OP, eor);
-    map_operation(newCPU, 0x61, INDIRECT_X, READ_OP, adc);
-    map_operation(newCPU, 0xa1, INDIRECT_X, READ_OP, lda);
-    map_operation(newCPU, 0xc1, INDIRECT_X, READ_OP, cmp);
-    map_operation(newCPU, 0xe1, INDIRECT_X, READ_OP, sbc);
-
-    map_operation(newCPU, 0x11, INDIRECT_Y, READ_OP, ora);
-    map_operation(newCPU, 0x31, INDIRECT_Y, READ_OP, and);
-    map_operation(newCPU, 0x51, INDIRECT_Y, READ_OP, eor);
-    map_operation(newCPU, 0x71, INDIRECT_Y, READ_OP, adc);
-    map_operation(newCPU, 0xb1, INDIRECT_Y, READ_OP, lda);
-    map_operation(newCPU, 0xd1, INDIRECT_Y, READ_OP, cmp);
-    map_operation(newCPU, 0xf1, INDIRECT_Y, READ_OP, sbc);
-
-    map_operation(newCPU, 0xc0, IMMEDIATE, READ_OP, cpy);
-    map_operation(newCPU, 0xc4, ZEROPAGE, READ_OP, cpy);
-    map_operation(newCPU, 0xcc, ABSOLUTE, READ_OP, cpy);
-
-    map_operation(newCPU, 0xe0, IMMEDIATE, READ_OP, cpx);
-    map_operation(newCPU, 0xe4, ZEROPAGE, READ_OP, cpx);
-    map_operation(newCPU, 0xec, ABSOLUTE, READ_OP, cpx);
-
-    map_operation(newCPU, 0xa0, IMMEDIATE, READ_OP, ldy);
-    map_operation(newCPU, 0xa4, ZEROPAGE, READ_OP, ldy);
-    map_operation(newCPU, 0xb4, ZEROPAGE_X, READ_OP, ldy);
-    map_operation(newCPU, 0xac, ABSOLUTE, READ_OP, ldy);
-    map_operation(newCPU, 0xbc, ABSOLUTE_X, READ_OP, ldy);
-
-    map_operation(newCPU, 0xa2, IMMEDIATE, READ_OP, ldx);
-    map_operation(newCPU, 0xa6, ZEROPAGE, READ_OP, ldx);
-    map_operation(newCPU, 0xb6, ZEROPAGE_Y, READ_OP, ldx);
-    map_operation(newCPU, 0xae, ABSOLUTE, READ_OP, ldx);
-    map_operation(newCPU, 0xbe, ABSOLUTE_Y, READ_OP, ldx);
-
-    map_operation(newCPU, 0xa7, ZEROPAGE, READ_OP, lax);
-    map_operation(newCPU, 0xb7, ZEROPAGE_Y, READ_OP, lax);
-    map_operation(newCPU, 0xaf, ABSOLUTE, READ_OP, lax);
-    map_operation(newCPU, 0xbf, ABSOLUTE_Y, READ_OP, lax);
-    map_operation(newCPU, 0xa3, INDIRECT_X, READ_OP, lax);
-    map_operation(newCPU, 0xb3, INDIRECT_Y, READ_OP, lax);
-
-    map_operation(newCPU, 0x07, ZEROPAGE, RMW_READ_OP, slo);
-    map_operation(newCPU, 0x17, ZEROPAGE_X, RMW_READ_OP, slo);
-    map_operation(newCPU, 0x0f, ABSOLUTE, RMW_READ_OP, slo);
-    map_operation(newCPU, 0x1f, ABSOLUTE_X, RMW_READ_OP, slo);
-    map_operation(newCPU, 0x1b, ABSOLUTE_Y, RMW_READ_OP, slo);
-    map_operation(newCPU, 0x03, INDIRECT_X, RMW_READ_OP, slo);
-    map_operation(newCPU, 0x13, INDIRECT_Y, RMW_READ_OP, slo);
-
-    map_operation(newCPU, 0x27, ZEROPAGE, RMW_READ_OP, rla);
-    map_operation(newCPU, 0x37, ZEROPAGE_X, RMW_READ_OP, rla);
-    map_operation(newCPU, 0x2f, ABSOLUTE, RMW_READ_OP, rla);
-    map_operation(newCPU, 0x3f, ABSOLUTE_X, RMW_READ_OP, rla);
-    map_operation(newCPU, 0x3b, ABSOLUTE_Y, RMW_READ_OP, rla);
-    map_operation(newCPU, 0x23, INDIRECT_X, RMW_READ_OP, rla);
-    map_operation(newCPU, 0x33, INDIRECT_Y, RMW_READ_OP, rla);
-
-    map_operation(newCPU, 0x47, ZEROPAGE, RMW_READ_OP, sre);
-    map_operation(newCPU, 0x57, ZEROPAGE_X, RMW_READ_OP, sre);
-    map_operation(newCPU, 0x4f, ABSOLUTE, RMW_READ_OP, sre);
-    map_operation(newCPU, 0x5f, ABSOLUTE_X, RMW_READ_OP, sre);
-    map_operation(newCPU, 0x5b, ABSOLUTE_Y, RMW_READ_OP, sre);
-    map_operation(newCPU, 0x43, INDIRECT_X, RMW_READ_OP, sre);
-    map_operation(newCPU, 0x53, INDIRECT_Y, RMW_READ_OP, sre);
-
-    map_operation(newCPU, 0x67, ZEROPAGE, RMW_READ_OP, rra);
-    map_operation(newCPU, 0x77, ZEROPAGE_X, RMW_READ_OP, rra);
-    map_operation(newCPU, 0x6f, ABSOLUTE, RMW_READ_OP, rra);
-    map_operation(newCPU, 0x7f, ABSOLUTE_X, RMW_READ_OP, rra);
-    map_operation(newCPU, 0x7b, ABSOLUTE_Y, RMW_READ_OP, rra);
-    map_operation(newCPU, 0x63, INDIRECT_X, RMW_READ_OP, rra);
-    map_operation(newCPU, 0x73, INDIRECT_Y, RMW_READ_OP, rra);
-
-    map_operation(newCPU, 0xc7, ZEROPAGE, RMW_READ_OP, dcp);
-    map_operation(newCPU, 0xd7, ZEROPAGE_X, RMW_READ_OP, dcp);
-    map_operation(newCPU, 0xcf, ABSOLUTE, RMW_READ_OP, dcp);
-    map_operation(newCPU, 0xdf, ABSOLUTE_X, RMW_READ_OP, dcp);
-    map_operation(newCPU, 0xdb, ABSOLUTE_Y, RMW_READ_OP, dcp);
-    map_operation(newCPU, 0xc3, INDIRECT_X, RMW_READ_OP, dcp);
-    map_operation(newCPU, 0xd3, INDIRECT_Y, RMW_READ_OP, dcp);
-
-    map_operation(newCPU, 0xe7, ZEROPAGE, RMW_READ_OP, isc);
-    map_operation(newCPU, 0xf7, ZEROPAGE_X, RMW_READ_OP, isc);
-    map_operation(newCPU, 0xef, ABSOLUTE, RMW_READ_OP, isc);
-    map_operation(newCPU, 0xff, ABSOLUTE_X, RMW_READ_OP, isc);
-    map_operation(newCPU, 0xfb, ABSOLUTE_Y, RMW_READ_OP, isc);
-    map_operation(newCPU, 0xe3, INDIRECT_X, RMW_READ_OP, isc);
-    map_operation(newCPU, 0xf3, INDIRECT_Y, RMW_READ_OP, isc);
-
-    map_operation(newCPU, 0x24, ZEROPAGE, READ_OP, bit);
-    map_operation(newCPU, 0x2c, ABSOLUTE, READ_OP, bit);
-
-    map_operation(newCPU, 0x18, IMPLIED, READ_OP, clc);
-    map_operation(newCPU, 0xd8, IMPLIED, READ_OP, cld);
-    map_operation(newCPU, 0x58, IMPLIED, READ_OP, cli);
-    map_operation(newCPU, 0xb8, IMPLIED, READ_OP, clv);
-
-    map_operation(newCPU, 0x38, IMPLIED, READ_OP, sec);
-    map_operation(newCPU, 0xf8, IMPLIED, READ_OP, sed);
-    map_operation(newCPU, 0x78, IMPLIED, READ_OP, sei);
-
-    map_operation(newCPU, 0xaa, IMPLIED, READ_OP, tax);
-    map_operation(newCPU, 0xa8, IMPLIED, READ_OP, tay);
-    map_operation(newCPU, 0xba, IMPLIED, READ_OP, tsx);
-    map_operation(newCPU, 0x8a, IMPLIED, READ_OP, txa);
-    map_operation(newCPU, 0x9a, IMPLIED, READ_OP, txs);
-    map_operation(newCPU, 0x98, IMPLIED, READ_OP, tya);
-
-    map_operation(newCPU, 0xe8, IMPLIED, READ_OP, inx);
-    map_operation(newCPU, 0xc8, IMPLIED, READ_OP, iny);
-    map_operation(newCPU, 0xca, IMPLIED, READ_OP, dex);
-    map_operation(newCPU, 0x88, IMPLIED, READ_OP, dey);
-
-    map_operation(newCPU, 0x0a, ACCUMULATOR, READ_OP, asl);
-    map_operation(newCPU, 0x4a, ACCUMULATOR, READ_OP, lsr);
-    map_operation(newCPU, 0x2a, ACCUMULATOR, READ_OP, rol);
-    map_operation(newCPU, 0x6a, ACCUMULATOR, READ_OP, ror);
-
-    map_operation(newCPU, 0x04, ZEROPAGE, READ_OP, nop);
-    map_operation(newCPU, 0x44, ZEROPAGE, READ_OP, nop);
-    map_operation(newCPU, 0x64, ZEROPAGE, READ_OP, nop);
-
-    map_operation(newCPU, 0x14, ZEROPAGE_X, READ_OP, nop);
-    map_operation(newCPU, 0x34, ZEROPAGE_X, READ_OP, nop);
-    map_operation(newCPU, 0x54, ZEROPAGE_X, READ_OP, nop);
-    map_operation(newCPU, 0x74, ZEROPAGE_X, READ_OP, nop);
-    map_operation(newCPU, 0xd4, ZEROPAGE_X, READ_OP, nop);
-    map_operation(newCPU, 0xf4, ZEROPAGE_X, READ_OP, nop);
-
-    map_operation(newCPU, 0x1a, IMPLIED, READ_OP, nop);
-    map_operation(newCPU, 0x3a, IMPLIED, READ_OP, nop);
-    map_operation(newCPU, 0x5a, IMPLIED, READ_OP, nop);
-    map_operation(newCPU, 0x7a, IMPLIED, READ_OP, nop);
-    map_operation(newCPU, 0xda, IMPLIED, READ_OP, nop);
-    map_operation(newCPU, 0xea, IMPLIED, READ_OP, nop);
-    map_operation(newCPU, 0xfa, IMPLIED, READ_OP, nop);
-
-    map_operation(newCPU, 0x0c, ABSOLUTE, READ_OP, nop);
-    map_operation(newCPU, 0x1c, ABSOLUTE_X, READ_OP, nop);
-    map_operation(newCPU, 0x3c, ABSOLUTE_X, READ_OP, nop);
-    map_operation(newCPU, 0x5c, ABSOLUTE_X, READ_OP, nop);
-    map_operation(newCPU, 0x7c, ABSOLUTE_X, READ_OP, nop);
-    map_operation(newCPU, 0xdc, ABSOLUTE_X, READ_OP, nop);
-    map_operation(newCPU, 0xfc, ABSOLUTE_X, READ_OP, nop);
-
-    map_operation(newCPU, 0x80, IMMEDIATE, READ_OP, nop);
-    map_operation(newCPU, 0x82, IMMEDIATE, READ_OP, nop);
-    map_operation(newCPU, 0x89, IMMEDIATE, READ_OP, nop);
-    map_operation(newCPU, 0xc2, IMMEDIATE, READ_OP, nop);
-    map_operation(newCPU, 0xe2, IMMEDIATE, READ_OP, nop);
-
+    // STANDARD OPS
+    map_operation(newCPU, 0x18, IMPLIED, STD_OP, clc);
+    map_operation(newCPU, 0xd8, IMPLIED, STD_OP, cld);
+    map_operation(newCPU, 0x58, IMPLIED, STD_OP, cli);
+    map_operation(newCPU, 0xb8, IMPLIED, STD_OP, clv);
+    map_operation(newCPU, 0x38, IMPLIED, STD_OP, sec);
+    map_operation(newCPU, 0xf8, IMPLIED, STD_OP, sed);
+    map_operation(newCPU, 0x78, IMPLIED, STD_OP, sei);
+    map_operation(newCPU, 0xaa, IMPLIED, STD_OP, tax);
+    map_operation(newCPU, 0xa8, IMPLIED, STD_OP, tay);
+    map_operation(newCPU, 0xba, IMPLIED, STD_OP, tsx);
+    map_operation(newCPU, 0x8a, IMPLIED, STD_OP, txa);
+    map_operation(newCPU, 0x9a, IMPLIED, STD_OP, txs);
+    map_operation(newCPU, 0x98, IMPLIED, STD_OP, tya);
+    map_operation(newCPU, 0xea, IMPLIED, STD_OP, nop);
+    map_operation(newCPU, 0xe8, IMPLIED, STD_OP, inx);
+    map_operation(newCPU, 0xc8, IMPLIED, STD_OP, iny);
+    map_operation(newCPU, 0xca, IMPLIED, STD_OP, dex);
+    map_operation(newCPU, 0x88, IMPLIED, STD_OP, dey);
+    map_operation(newCPU, 0x0a, ACCUMULATOR, STD_OP, asl);
+    map_operation(newCPU, 0x4a, ACCUMULATOR, STD_OP, lsr);
+    map_operation(newCPU, 0x2a, ACCUMULATOR, STD_OP, rol);
+    map_operation(newCPU, 0x6a, ACCUMULATOR, STD_OP, ror);
+    map_operation(newCPU, 0x10, RELATIVE, STD_OP, bpl);
+    map_operation(newCPU, 0x30, RELATIVE, STD_OP, bmi);
+    map_operation(newCPU, 0x50, RELATIVE, STD_OP, bvc);
+    map_operation(newCPU, 0x70, RELATIVE, STD_OP, bvs);
+    map_operation(newCPU, 0x90, RELATIVE, STD_OP, bcc);
+    map_operation(newCPU, 0xb0, RELATIVE, STD_OP, bcs);
+    map_operation(newCPU, 0xd0, RELATIVE, STD_OP, bne);
+    map_operation(newCPU, 0xf0, RELATIVE, STD_OP, beq);
+    map_operation(newCPU, 0x09, IMMEDIATE, STD_OP, ora);
+    map_operation(newCPU, 0x29, IMMEDIATE, STD_OP, and);
+    map_operation(newCPU, 0x49, IMMEDIATE, STD_OP, eor);
+    map_operation(newCPU, 0x69, IMMEDIATE, STD_OP, adc);
+    map_operation(newCPU, 0xa9, IMMEDIATE, STD_OP, lda);
+    map_operation(newCPU, 0xc9, IMMEDIATE, STD_OP, cmp);
+    map_operation(newCPU, 0xe9, IMMEDIATE, STD_OP, sbc);
+    map_operation(newCPU, 0xc0, IMMEDIATE, STD_OP, cpy);
+    map_operation(newCPU, 0xe0, IMMEDIATE, STD_OP, cpx);
+    map_operation(newCPU, 0xa0, IMMEDIATE, STD_OP, ldy);
+    map_operation(newCPU, 0xa2, IMMEDIATE, STD_OP, ldx);
+    map_operation(newCPU, 0x05, ZEROPAGE, STD_OP, ora);
+    map_operation(newCPU, 0x25, ZEROPAGE, STD_OP, and);
+    map_operation(newCPU, 0x45, ZEROPAGE, STD_OP, eor);
+    map_operation(newCPU, 0x65, ZEROPAGE, STD_OP, adc);
+    map_operation(newCPU, 0xa5, ZEROPAGE, STD_OP, lda);
+    map_operation(newCPU, 0xc5, ZEROPAGE, STD_OP, cmp);
+    map_operation(newCPU, 0xe5, ZEROPAGE, STD_OP, sbc);
+    map_operation(newCPU, 0xc4, ZEROPAGE, STD_OP, cpy);
+    map_operation(newCPU, 0xe4, ZEROPAGE, STD_OP, cpx);
+    map_operation(newCPU, 0xa4, ZEROPAGE, STD_OP, ldy);
+    map_operation(newCPU, 0xa6, ZEROPAGE, STD_OP, ldx);
+    map_operation(newCPU, 0x24, ZEROPAGE, STD_OP, bit);
+    map_operation(newCPU, 0x85, ZEROPAGE, STD_OP, sta);
+    map_operation(newCPU, 0x86, ZEROPAGE, STD_OP, stx);
+    map_operation(newCPU, 0x84, ZEROPAGE, STD_OP, sty);
     map_operation(newCPU, 0x06, ZEROPAGE, RMW_OP, asl);
     map_operation(newCPU, 0x46, ZEROPAGE, RMW_OP, lsr);
     map_operation(newCPU, 0x26, ZEROPAGE, RMW_OP, rol);
     map_operation(newCPU, 0x66, ZEROPAGE, RMW_OP, ror);
     map_operation(newCPU, 0xe6, ZEROPAGE, RMW_OP, inc);
     map_operation(newCPU, 0xc6, ZEROPAGE, RMW_OP, dec);
-
+    map_operation(newCPU, 0x15, ZEROPAGE_X, STD_OP, ora);
+    map_operation(newCPU, 0x35, ZEROPAGE_X, STD_OP, and);
+    map_operation(newCPU, 0x55, ZEROPAGE_X, STD_OP, eor);
+    map_operation(newCPU, 0x75, ZEROPAGE_X, STD_OP, adc);
+    map_operation(newCPU, 0xb5, ZEROPAGE_X, STD_OP, lda);
+    map_operation(newCPU, 0xd5, ZEROPAGE_X, STD_OP, cmp);
+    map_operation(newCPU, 0xf5, ZEROPAGE_X, STD_OP, sbc);
+    map_operation(newCPU, 0xb6, ZEROPAGE_Y, STD_OP, ldx);
+    map_operation(newCPU, 0xb4, ZEROPAGE_X, STD_OP, ldy);
+    map_operation(newCPU, 0x95, ZEROPAGE_X, STD_OP, sta);
+    map_operation(newCPU, 0x96, ZEROPAGE_Y, STD_OP, stx);
+    map_operation(newCPU, 0x94, ZEROPAGE_X, STD_OP, sty);
     map_operation(newCPU, 0x16, ZEROPAGE_X, RMW_OP, asl);
     map_operation(newCPU, 0x56, ZEROPAGE_X, RMW_OP, lsr);
     map_operation(newCPU, 0x36, ZEROPAGE_X, RMW_OP, rol);
     map_operation(newCPU, 0x76, ZEROPAGE_X, RMW_OP, ror);
     map_operation(newCPU, 0xf6, ZEROPAGE_X, RMW_OP, inc);
     map_operation(newCPU, 0xd6, ZEROPAGE_X, RMW_OP, dec);
-
+    map_operation(newCPU, 0x0d, ABSOLUTE, STD_OP, ora);
+    map_operation(newCPU, 0x2d, ABSOLUTE, STD_OP, and);
+    map_operation(newCPU, 0x4d, ABSOLUTE, STD_OP, eor);
+    map_operation(newCPU, 0x6d, ABSOLUTE, STD_OP, adc);
+    map_operation(newCPU, 0xad, ABSOLUTE, STD_OP, lda);
+    map_operation(newCPU, 0xcd, ABSOLUTE, STD_OP, cmp);
+    map_operation(newCPU, 0xed, ABSOLUTE, STD_OP, sbc);
+    map_operation(newCPU, 0xcc, ABSOLUTE, STD_OP, cpy);
+    map_operation(newCPU, 0xec, ABSOLUTE, STD_OP, cpx);
+    map_operation(newCPU, 0xac, ABSOLUTE, STD_OP, ldy);
+    map_operation(newCPU, 0xae, ABSOLUTE, STD_OP, ldx);
+    map_operation(newCPU, 0x2c, ABSOLUTE, STD_OP, bit);
+    map_operation(newCPU, 0x8d, ABSOLUTE, STD_OP, sta);
+    map_operation(newCPU, 0x8e, ABSOLUTE, STD_OP, stx);
+    map_operation(newCPU, 0x8c, ABSOLUTE, STD_OP, sty);
     map_operation(newCPU, 0x0e, ABSOLUTE, RMW_OP, asl);
     map_operation(newCPU, 0x4e, ABSOLUTE, RMW_OP, lsr);
     map_operation(newCPU, 0x2e, ABSOLUTE, RMW_OP, rol);
     map_operation(newCPU, 0x6e, ABSOLUTE, RMW_OP, ror);
     map_operation(newCPU, 0xee, ABSOLUTE, RMW_OP, inc);
     map_operation(newCPU, 0xce, ABSOLUTE, RMW_OP, dec);
-
+    map_operation(newCPU, 0x1d, ABSOLUTE_X, STD_OP, ora);
+    map_operation(newCPU, 0x3d, ABSOLUTE_X, STD_OP, and);
+    map_operation(newCPU, 0x5d, ABSOLUTE_X, STD_OP, eor);
+    map_operation(newCPU, 0x7d, ABSOLUTE_X, STD_OP, adc);
+    map_operation(newCPU, 0xbd, ABSOLUTE_X, STD_OP, lda);
+    map_operation(newCPU, 0xdd, ABSOLUTE_X, STD_OP, cmp);
+    map_operation(newCPU, 0xfd, ABSOLUTE_X, STD_OP, sbc);
+    map_operation(newCPU, 0xbc, ABSOLUTE_X, STD_OP, ldy);
+    map_operation(newCPU, 0x9d, ABSOLUTE_X, STD_OP, sta);
     map_operation(newCPU, 0x1e, ABSOLUTE_X, RMW_OP, asl);
     map_operation(newCPU, 0x5e, ABSOLUTE_X, RMW_OP, lsr);
     map_operation(newCPU, 0x3e, ABSOLUTE_X, RMW_OP, rol);
     map_operation(newCPU, 0x7e, ABSOLUTE_X, RMW_OP, ror);
     map_operation(newCPU, 0xfe, ABSOLUTE_X, RMW_OP, inc);
     map_operation(newCPU, 0xde, ABSOLUTE_X, RMW_OP, dec);
+    map_operation(newCPU, 0x19, ABSOLUTE_Y, STD_OP, ora);
+    map_operation(newCPU, 0x39, ABSOLUTE_Y, STD_OP, and);
+    map_operation(newCPU, 0x59, ABSOLUTE_Y, STD_OP, eor);
+    map_operation(newCPU, 0x79, ABSOLUTE_Y, STD_OP, adc);
+    map_operation(newCPU, 0xb9, ABSOLUTE_Y, STD_OP, lda);
+    map_operation(newCPU, 0xd9, ABSOLUTE_Y, STD_OP, cmp);
+    map_operation(newCPU, 0xf9, ABSOLUTE_Y, STD_OP, sbc);
+    map_operation(newCPU, 0xbe, ABSOLUTE_Y, STD_OP, ldx);
+    map_operation(newCPU, 0x99, ABSOLUTE_Y, STD_OP, sta);
+    map_operation(newCPU, 0x01, INDIRECT_X, STD_OP, ora);
+    map_operation(newCPU, 0x21, INDIRECT_X, STD_OP, and);
+    map_operation(newCPU, 0x41, INDIRECT_X, STD_OP, eor);
+    map_operation(newCPU, 0x61, INDIRECT_X, STD_OP, adc);
+    map_operation(newCPU, 0xa1, INDIRECT_X, STD_OP, lda);
+    map_operation(newCPU, 0xc1, INDIRECT_X, STD_OP, cmp);
+    map_operation(newCPU, 0xe1, INDIRECT_X, STD_OP, sbc);
+    map_operation(newCPU, 0x81, INDIRECT_X, STD_OP, sta);
+    map_operation(newCPU, 0x11, INDIRECT_Y, STD_OP, ora);
+    map_operation(newCPU, 0x31, INDIRECT_Y, STD_OP, and);
+    map_operation(newCPU, 0x51, INDIRECT_Y, STD_OP, eor);
+    map_operation(newCPU, 0x71, INDIRECT_Y, STD_OP, adc);
+    map_operation(newCPU, 0xb1, INDIRECT_Y, STD_OP, lda);
+    map_operation(newCPU, 0xd1, INDIRECT_Y, STD_OP, cmp);
+    map_operation(newCPU, 0xf1, INDIRECT_Y, STD_OP, sbc);
+    map_operation(newCPU, 0x91, INDIRECT_Y, STD_OP, sta);
 
-    map_operation(newCPU, 0x85, ZEROPAGE, WRITE_OP, sta);
-    map_operation(newCPU, 0x86, ZEROPAGE, WRITE_OP, stx);
-    map_operation(newCPU, 0x84, ZEROPAGE, WRITE_OP, sty);
-
-    map_operation(newCPU, 0x95, ZEROPAGE_X, WRITE_OP, sta);
-    map_operation(newCPU, 0x96, ZEROPAGE_Y, WRITE_OP, stx);
-    map_operation(newCPU, 0x94, ZEROPAGE_X, WRITE_OP, sty);
-
-    map_operation(newCPU, 0x8d, ABSOLUTE, WRITE_OP, sta);
-    map_operation(newCPU, 0x8e, ABSOLUTE, WRITE_OP, stx);
-    map_operation(newCPU, 0x8c, ABSOLUTE, WRITE_OP, sty);
-
-    map_operation(newCPU, 0x9d, ABSOLUTE_X, WRITE_OP, sta);
-    map_operation(newCPU, 0x99, ABSOLUTE_Y, WRITE_OP, sta);
-    map_operation(newCPU, 0x81, INDIRECT_X, WRITE_OP, sta);
-    map_operation(newCPU, 0x91, INDIRECT_Y, WRITE_OP, sta);
-
-    map_operation(newCPU, 0x87, ZEROPAGE, WRITE_OP, aax);
-    map_operation(newCPU, 0x97, ZEROPAGE_Y, WRITE_OP, aax);
-    map_operation(newCPU, 0x8f, ABSOLUTE, WRITE_OP, aax);
-    map_operation(newCPU, 0x83, INDIRECT_X, WRITE_OP, aax);
-
-    map_operation(newCPU, 0x9e, ABSOLUTE_Y, WRITE_OP, sxa);
-    map_operation(newCPU, 0x9c, ABSOLUTE_X, WRITE_OP, sya);
-
-    map_operation(newCPU, 0x10, RELATIVE, READ_OP, bpl);
-    map_operation(newCPU, 0x30, RELATIVE, READ_OP, bmi);
-    map_operation(newCPU, 0x50, RELATIVE, READ_OP, bvc);
-    map_operation(newCPU, 0x70, RELATIVE, READ_OP, bvs);
-    map_operation(newCPU, 0x90, RELATIVE, READ_OP, bcc);
-    map_operation(newCPU, 0xb0, RELATIVE, READ_OP, bcs);
-    map_operation(newCPU, 0xd0, RELATIVE, READ_OP, bne);
-    map_operation(newCPU, 0xf0, RELATIVE, READ_OP, beq);
+    // ILLEGAL OPS
+    map_operation(newCPU, 0x1a, IMPLIED, STD_OP, nop);
+    map_operation(newCPU, 0x3a, IMPLIED, STD_OP, nop);
+    map_operation(newCPU, 0x5a, IMPLIED, STD_OP, nop);
+    map_operation(newCPU, 0x7a, IMPLIED, STD_OP, nop);
+    map_operation(newCPU, 0xda, IMPLIED, STD_OP, nop);
+    map_operation(newCPU, 0xfa, IMPLIED, STD_OP, nop);
+    map_operation(newCPU, 0x80, IMMEDIATE, STD_OP, nop);
+    map_operation(newCPU, 0x82, IMMEDIATE, STD_OP, nop);
+    map_operation(newCPU, 0x89, IMMEDIATE, STD_OP, nop);
+    map_operation(newCPU, 0xc2, IMMEDIATE, STD_OP, nop);
+    map_operation(newCPU, 0xe2, IMMEDIATE, STD_OP, nop);
+    map_operation(newCPU, 0xeb, IMMEDIATE, STD_OP, sbc);
+    map_operation(newCPU, 0x0b, IMMEDIATE, STD_OP, anc);
+    map_operation(newCPU, 0x2b, IMMEDIATE, STD_OP, anc);
+    map_operation(newCPU, 0x4b, IMMEDIATE, STD_OP, alr);
+    map_operation(newCPU, 0x6b, IMMEDIATE, STD_OP, arr);
+    map_operation(newCPU, 0xab, IMMEDIATE, STD_OP, atx);
+    map_operation(newCPU, 0xcb, IMMEDIATE, STD_OP, axs);
+    map_operation(newCPU, 0x04, ZEROPAGE, STD_OP, nop);
+    map_operation(newCPU, 0x44, ZEROPAGE, STD_OP, nop);
+    map_operation(newCPU, 0x64, ZEROPAGE, STD_OP, nop);
+    map_operation(newCPU, 0x87, ZEROPAGE, STD_OP, aax);
+    map_operation(newCPU, 0xa7, ZEROPAGE, STD_OP, lax);
+    map_operation(newCPU, 0x07, ZEROPAGE, RMW_COMBO_OP, slo);
+    map_operation(newCPU, 0x27, ZEROPAGE, RMW_COMBO_OP, rla);
+    map_operation(newCPU, 0x47, ZEROPAGE, RMW_COMBO_OP, sre);
+    map_operation(newCPU, 0x67, ZEROPAGE, RMW_COMBO_OP, rra);
+    map_operation(newCPU, 0xc7, ZEROPAGE, RMW_COMBO_OP, dcp);
+    map_operation(newCPU, 0xe7, ZEROPAGE, RMW_COMBO_OP, isc);
+    map_operation(newCPU, 0x14, ZEROPAGE_X, STD_OP, nop);
+    map_operation(newCPU, 0x34, ZEROPAGE_X, STD_OP, nop);
+    map_operation(newCPU, 0x54, ZEROPAGE_X, STD_OP, nop);
+    map_operation(newCPU, 0x74, ZEROPAGE_X, STD_OP, nop);
+    map_operation(newCPU, 0xd4, ZEROPAGE_X, STD_OP, nop);
+    map_operation(newCPU, 0xf4, ZEROPAGE_X, STD_OP, nop);
+    map_operation(newCPU, 0x97, ZEROPAGE_Y, STD_OP, aax);
+    map_operation(newCPU, 0xb7, ZEROPAGE_Y, STD_OP, lax);
+    map_operation(newCPU, 0x17, ZEROPAGE_X, RMW_COMBO_OP, slo);
+    map_operation(newCPU, 0x37, ZEROPAGE_X, RMW_COMBO_OP, rla);
+    map_operation(newCPU, 0x57, ZEROPAGE_X, RMW_COMBO_OP, sre);
+    map_operation(newCPU, 0x77, ZEROPAGE_X, RMW_COMBO_OP, rra);
+    map_operation(newCPU, 0xd7, ZEROPAGE_X, RMW_COMBO_OP, dcp);
+    map_operation(newCPU, 0xf7, ZEROPAGE_X, RMW_COMBO_OP, isc);
+    map_operation(newCPU, 0x0c, ABSOLUTE, STD_OP, nop);
+    map_operation(newCPU, 0x8f, ABSOLUTE, STD_OP, aax);
+    map_operation(newCPU, 0xaf, ABSOLUTE, STD_OP, lax);
+    map_operation(newCPU, 0x0f, ABSOLUTE, RMW_COMBO_OP, slo);
+    map_operation(newCPU, 0x2f, ABSOLUTE, RMW_COMBO_OP, rla);
+    map_operation(newCPU, 0x4f, ABSOLUTE, RMW_COMBO_OP, sre);
+    map_operation(newCPU, 0x6f, ABSOLUTE, RMW_COMBO_OP, rra);
+    map_operation(newCPU, 0xcf, ABSOLUTE, RMW_COMBO_OP, dcp);
+    map_operation(newCPU, 0xef, ABSOLUTE, RMW_COMBO_OP, isc);
+    map_operation(newCPU, 0x1c, ABSOLUTE_X, STD_OP, nop);
+    map_operation(newCPU, 0x3c, ABSOLUTE_X, STD_OP, nop);
+    map_operation(newCPU, 0x5c, ABSOLUTE_X, STD_OP, nop);
+    map_operation(newCPU, 0x7c, ABSOLUTE_X, STD_OP, nop);
+    map_operation(newCPU, 0xdc, ABSOLUTE_X, STD_OP, nop);
+    map_operation(newCPU, 0xfc, ABSOLUTE_X, STD_OP, nop);
+    map_operation(newCPU, 0x9c, ABSOLUTE_X, STD_OP, sya);
+    map_operation(newCPU, 0x1f, ABSOLUTE_X, RMW_COMBO_OP, slo);
+    map_operation(newCPU, 0x3f, ABSOLUTE_X, RMW_COMBO_OP, rla);
+    map_operation(newCPU, 0x5f, ABSOLUTE_X, RMW_COMBO_OP, sre);
+    map_operation(newCPU, 0x7f, ABSOLUTE_X, RMW_COMBO_OP, rra);
+    map_operation(newCPU, 0xdf, ABSOLUTE_X, RMW_COMBO_OP, dcp);
+    map_operation(newCPU, 0xff, ABSOLUTE_X, RMW_COMBO_OP, isc);
+    map_operation(newCPU, 0x9e, ABSOLUTE_Y, STD_OP, sxa);
+    map_operation(newCPU, 0xbf, ABSOLUTE_Y, STD_OP, lax);
+    map_operation(newCPU, 0x1b, ABSOLUTE_Y, RMW_COMBO_OP, slo);
+    map_operation(newCPU, 0x3b, ABSOLUTE_Y, RMW_COMBO_OP, rla);
+    map_operation(newCPU, 0x5b, ABSOLUTE_Y, RMW_COMBO_OP, sre);
+    map_operation(newCPU, 0x7b, ABSOLUTE_Y, RMW_COMBO_OP, rra);
+    map_operation(newCPU, 0xdb, ABSOLUTE_Y, RMW_COMBO_OP, dcp);
+    map_operation(newCPU, 0xfb, ABSOLUTE_Y, RMW_COMBO_OP, isc);
+    map_operation(newCPU, 0x83, INDIRECT_X, STD_OP, aax);
+    map_operation(newCPU, 0xa3, INDIRECT_X, STD_OP, lax);
+    map_operation(newCPU, 0x03, INDIRECT_X, RMW_COMBO_OP, slo);
+    map_operation(newCPU, 0x23, INDIRECT_X, RMW_COMBO_OP, rla);
+    map_operation(newCPU, 0x43, INDIRECT_X, RMW_COMBO_OP, sre);
+    map_operation(newCPU, 0x63, INDIRECT_X, RMW_COMBO_OP, rra);
+    map_operation(newCPU, 0xc3, INDIRECT_X, RMW_COMBO_OP, dcp);
+    map_operation(newCPU, 0xe3, INDIRECT_X, RMW_COMBO_OP, isc);
+    map_operation(newCPU, 0xb3, INDIRECT_Y, STD_OP, lax);
+    map_operation(newCPU, 0x13, INDIRECT_Y, RMW_COMBO_OP, slo);
+    map_operation(newCPU, 0x33, INDIRECT_Y, RMW_COMBO_OP, rla);
+    map_operation(newCPU, 0x53, INDIRECT_Y, RMW_COMBO_OP, sre);
+    map_operation(newCPU, 0x73, INDIRECT_Y, RMW_COMBO_OP, rra);
+    map_operation(newCPU, 0xd3, INDIRECT_Y, RMW_COMBO_OP, dcp);
+    map_operation(newCPU, 0xf3, INDIRECT_Y, RMW_COMBO_OP, isc);
 
     return newCPU;
 }
