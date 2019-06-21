@@ -2,58 +2,61 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-const char instrs[256][4] = {"BRK", "ORA", "XXX", "SLO", "DOP", "ORA", "ASL", "SLO",
-                             "PHP", "ORA", "ASL", "AAC", "TOP", "ORA", "ASL", "SLO",
-                             "BPL", "ORA", "XXX", "SLO", "DOP", "ORA", "ASL", "SLO",
-                             "CLC", "ORA", "NOP", "SLO", "TOP", "ORA", "ASL", "SLO",
-                             "JSR", "AND", "XXX", "RLA", "BIT", "AND", "ROL", "RLA",
-                             "PLP", "AND", "ROL", "AAC", "BIT", "AND", "ROL", "RLA",
-                             "BMI", "AND", "XXX", "RLA", "DOP", "AND", "ROL", "RLA",
-                             "SEC", "AND", "NOP", "RLA", "TOP", "AND", "ROL", "RLA",
-                             "RTI", "EOR", "XXX", "SRE", "DOP", "EOR", "LSR", "SRE",
-                             "PHA", "EOR", "LSR", "ASR", "JMP", "EOR", "LSR", "SRE",
-                             "BVC", "EOR", "XXX", "SRE", "DOP", "EOR", "LSR", "SRE",
-                             "CLI", "EOR", "NOP", "SRE", "TOP", "EOR", "LSR", "SRE",
-                             "RTS", "ADC", "XXX", "RRA", "DOP", "ADC", "ROR", "RRA",
-                             "PLA", "ADC", "ROR", "ARR", "JMP", "ADC", "ROR", "RRA",
-                             "BVS", "ADC", "XXX", "RRA", "DOP", "ADC", "ROR", "RRA",
-                             "SEI", "ADC", "NOP", "RRA", "TOP", "ADC", "ROR", "RRA",
-                             "DOP", "STA", "DOP", "AAX", "STY", "STA", "STX", "AAX",
-                             "DEY", "DOP", "TXA", "???", "STY", "STA", "STX", "AAX",
-                             "BCC", "STA", "XXX", "???", "STY", "STA", "STX", "AAX",
-                             "TYA", "STA", "TXS", "???", "SYA", "STA", "SXA", "???",
-                             "LDY", "LDA", "LDX", "LAX", "LDY", "LDA", "LDX", "LAX",
-                             "TAY", "LDA", "TAX", "ATX", "LDY", "LDA", "LDX", "LAX",
-                             "BCS", "LDA", "XXX", "LAX", "LDY", "LDA", "LDX", "LAX",
-                             "CLV", "LDA", "TSX", "???", "LDY", "LDA", "LDX", "LAX",
-                             "CPY", "CMP", "DOP", "DCP", "CPY", "CMP", "DEC", "DCP",
-                             "INY", "CMP", "DEX", "AXS", "CPY", "CMP", "DEC", "DCP",
-                             "BNE", "CMP", "XXX", "DCP", "DOP", "CMP", "DEC", "DCP",
-                             "CLD", "CMP", "NOP", "DCP", "TOP", "CMP", "DEC", "DCP",
-                             "CPX", "SBC", "DOP", "ISC", "CPX", "SBC", "INC", "ISC",
-                             "INX", "SBC", "NOP", "SBC", "CPX", "SBC", "INC", "ISC",
-                             "BEQ", "SBC", "XXX", "ISC", "DOP", "SBC", "INC", "ISC",
-                             "SED", "SBC", "NOP", "ISC", "TOP", "SBC", "INC", "ISC"};
+const char instrs[256][4] = {
+    "BRK", "ORA", "XXX", "SLO", "DOP", "ORA", "ASL", "SLO", "PHP", "ORA", "ASL", "AAC", "TOP",
+    "ORA", "ASL", "SLO", "BPL", "ORA", "XXX", "SLO", "DOP", "ORA", "ASL", "SLO", "CLC", "ORA",
+    "NOP", "SLO", "TOP", "ORA", "ASL", "SLO", "JSR", "AND", "XXX", "RLA", "BIT", "AND", "ROL",
+    "RLA", "PLP", "AND", "ROL", "AAC", "BIT", "AND", "ROL", "RLA", "BMI", "AND", "XXX", "RLA",
+    "DOP", "AND", "ROL", "RLA", "SEC", "AND", "NOP", "RLA", "TOP", "AND", "ROL", "RLA", "RTI",
+    "EOR", "XXX", "SRE", "DOP", "EOR", "LSR", "SRE", "PHA", "EOR", "LSR", "ASR", "JMP", "EOR",
+    "LSR", "SRE", "BVC", "EOR", "XXX", "SRE", "DOP", "EOR", "LSR", "SRE", "CLI", "EOR", "NOP",
+    "SRE", "TOP", "EOR", "LSR", "SRE", "RTS", "ADC", "XXX", "RRA", "DOP", "ADC", "ROR", "RRA",
+    "PLA", "ADC", "ROR", "ARR", "JMP", "ADC", "ROR", "RRA", "BVS", "ADC", "XXX", "RRA", "DOP",
+    "ADC", "ROR", "RRA", "SEI", "ADC", "NOP", "RRA", "TOP", "ADC", "ROR", "RRA", "DOP", "STA",
+    "DOP", "AAX", "STY", "STA", "STX", "AAX", "DEY", "DOP", "TXA", "???", "STY", "STA", "STX",
+    "AAX", "BCC", "STA", "XXX", "???", "STY", "STA", "STX", "AAX", "TYA", "STA", "TXS", "???",
+    "SYA", "STA", "SXA", "???", "LDY", "LDA", "LDX", "LAX", "LDY", "LDA", "LDX", "LAX", "TAY",
+    "LDA", "TAX", "ATX", "LDY", "LDA", "LDX", "LAX", "BCS", "LDA", "XXX", "LAX", "LDY", "LDA",
+    "LDX", "LAX", "CLV", "LDA", "TSX", "???", "LDY", "LDA", "LDX", "LAX", "CPY", "CMP", "DOP",
+    "DCP", "CPY", "CMP", "DEC", "DCP", "INY", "CMP", "DEX", "AXS", "CPY", "CMP", "DEC", "DCP",
+    "BNE", "CMP", "XXX", "DCP", "DOP", "CMP", "DEC", "DCP", "CLD", "CMP", "NOP", "DCP", "TOP",
+    "CMP", "DEC", "DCP", "CPX", "SBC", "DOP", "ISC", "CPX", "SBC", "INC", "ISC", "INX", "SBC",
+    "NOP", "SBC", "CPX", "SBC", "INC", "ISC", "BEQ", "SBC", "XXX", "ISC", "DOP", "SBC", "INC",
+    "ISC", "SED", "SBC", "NOP", "ISC", "TOP", "SBC", "INC", "ISC"};
 
 // Status bitmasks
-enum { CARRY       = 0x01,
-       ZERO        = 0x02,
-       IRQ_DISABLE = 0x04,
-       DECIMAL     = 0x08,
-       OVERFLOW    = 0x40,
-       NEGATIVE    = 0x80 };
+enum {
+    CARRY =       0x01,
+    ZERO =        0x02,
+    IRQ_DISABLE = 0x04,
+    DECIMAL =     0x08,
+    OVERFLOW =    0x40,
+    NEGATIVE =    0x80
+};
 
 // Addressing modes
-enum AddressMode_t { IMPLIED, ACCUMULATOR, RELATIVE, IMMEDIATE, ABSOLUTE, ZEROPAGE, ZEROPAGE_X, ZEROPAGE_Y, ABSOLUTE_X, ABSOLUTE_Y, INDIRECT_X, INDIRECT_Y };
+enum AddressMode_t {
+    IMPLIED,
+    ACCUMULATOR,
+    RELATIVE,
+    IMMEDIATE,
+    ABSOLUTE,
+    ZEROPAGE,
+    ZEROPAGE_X,
+    ZEROPAGE_Y,
+    ABSOLUTE_X,
+    ABSOLUTE_Y,
+    INDIRECT_X,
+    INDIRECT_Y
+};
 enum InstructionMode_t { READ_OP, WRITE_OP, RMW_OP, RMW_READ_OP, OTHER_OP };
 
-struct cpu
-{
+struct cpu {
     // External signals
     uint16_t address;
     bool write;
-    bool *nmi;
-    bool *irq;
+    bool* nmi;
+    bool* irq;
 
     uint8_t accumulator;
     uint8_t x;
@@ -63,11 +66,11 @@ struct cpu
     uint8_t dummy;
     uint8_t flags;
     uint16_t pc;
-    uint8_t *pcL;
-    uint8_t *pcH;
+    uint8_t* pcL;
+    uint8_t* pcH;
     uint16_t ad;
-    uint8_t *adL;
-    uint8_t *adH;
+    uint8_t* adL;
+    uint8_t* adH;
     uint8_t currentOp;
     uint8_t tick;
     bool nmi_prev;
@@ -78,39 +81,34 @@ struct cpu
 
     opPtr ops[256][10];
 
-    uint8_t *memory_read[0x10000];
-    uint8_t *memory_write[0x10000];
+    uint8_t* memory_read[0x10000];
+    uint8_t* memory_write[0x10000];
 };
-typedef void (*opPtr)(cpu *);
+typedef void (*opPtr)(cpu*);
 
-uint8_t cpu_readMemory(cpu *c, uint16_t address)
-{
+uint8_t cpu_readMemory(cpu* c, uint16_t address) {
     c->address = address;
     c->write = false;
     return *c->memory_read[address];
 }
-void cpu_writeMemory(cpu *c, uint16_t address, uint8_t value)
-{
+void cpu_writeMemory(cpu* c, uint16_t address, uint8_t value) {
     c->address = address;
     c->write = true;
     *c->memory_write[address] = value;
 }
 
-void fetchOp(cpu *c)
-{
+void fetchOp(cpu* c) {
     c->currentOp = cpu_readMemory(c, c->pc);
     c->tick = 0;
-    if (c->nmi_pending)
-    {
+    if (c->nmi_pending) {
         c->currentOp = 0;
         c->nmi_starting = true;
-    }
-    else
+    } else {
         c->pc++;
+    }
 }
 
-void loadRegister(cpu *c, uint8_t *reg, uint8_t value)
-{
+void loadRegister(cpu* c, uint8_t* reg, uint8_t value) {
     if (value == 0)
         c->flags |= ZERO;
     else
@@ -122,8 +120,7 @@ void loadRegister(cpu *c, uint8_t *reg, uint8_t value)
     *reg = value;
 }
 
-void writeValue(cpu *c, uint16_t address, uint8_t value)
-{
+void writeValue(cpu* c, uint16_t address, uint8_t value) {
     if (value == 0)
         c->flags |= ZERO;
     else
@@ -135,21 +132,18 @@ void writeValue(cpu *c, uint16_t address, uint8_t value)
     cpu_writeMemory(c, address, value);
 }
 
-void fetchPCHbrk(cpu *c)
-{
-    if (c->nmi_starting)
-    {
+void fetchPCHbrk(cpu* c) {
+    if (c->nmi_starting) {
         *c->pcH = cpu_readMemory(c, 0xfffb);
         c->nmi_pending = false;
         c->nmi_starting = false;
         c->nmi_executing = true;
-    }
-    else
+    } else {
         *c->pcH = cpu_readMemory(c, 0xffff);
+    }
 }
 
-void fetchPCLbrk(cpu *c)
-{
+void fetchPCLbrk(cpu* c) {
     if (c->nmi_starting)
         *c->pcL = cpu_readMemory(c, 0xfffa);
     else
@@ -157,122 +151,93 @@ void fetchPCLbrk(cpu *c)
     c->flags |= IRQ_DISABLE;
 }
 
-void fetchADL(cpu *c)
-{
+void fetchADL(cpu* c) {
     *c->adH = 0;
     *c->adL = cpu_readMemory(c, c->pc);
     c->pc++;
 }
 
-void fetchADH(cpu *c)
-{
+void fetchADH(cpu* c) {
     *c->adH = cpu_readMemory(c, c->pc);
     c->pc++;
 }
 
-void readAddress(cpu *c)
-{
+void readAddress(cpu* c) {
     c->temp = cpu_readMemory(c, c->ad);
 }
 
-void writeAddress(cpu *c)
-{
+void writeAddress(cpu* c) {
     cpu_writeMemory(c, c->ad, c->temp);
 }
-void fetchIndirectY(cpu *c)
-{
+void fetchIndirectY(cpu* c) {
     (*c->adL)++;
     *c->adH = cpu_readMemory(c, c->ad);
     *c->adL = c->temp + c->y;
 }
-void fetchIndirectXLow(cpu *c)
-{
+void fetchIndirectXLow(cpu* c) {
     *c->adL += c->x;
     c->temp = cpu_readMemory(c, c->ad);
 }
-void fetchIndirectXHigh(cpu *c)
-{
+void fetchIndirectXHigh(cpu* c) {
     (*c->adL)++;
     *c->adH = cpu_readMemory(c, c->ad);
     *c->adL = c->temp;
 }
 
-void readIndirect(cpu *c)
-{
-    if (*c->adL < c->y)
-    {
+void readIndirect(cpu* c) {
+    if (*c->adL < c->y) {
         c->temp = cpu_readMemory(c, c->ad);
         (*c->adH)++;
-    }
-    else
-    {
+    } else {
         c->ops[c->currentOp][5](c);
     }
 }
-void readZpX(cpu *c)
-{
+void readZpX(cpu* c) {
     c->temp = cpu_readMemory(c, c->ad);
     *c->adL += c->x;
 }
-void readZpY(cpu *c)
-{
+void readZpY(cpu* c) {
     c->temp = cpu_readMemory(c, c->ad);
     *c->adL += c->y;
 }
-void readAbsX(cpu *c)
-{
+void readAbsX(cpu* c) {
     *c->adL += c->x;
-    if (*c->adL < c->x)
-    {
+    if (*c->adL < c->x) {
         c->temp = cpu_readMemory(c, c->ad);
         (*c->adH)++;
-    }
-    else
-    {
+    } else {
         c->ops[c->currentOp][4](c);
     }
 }
-void readAbsY(cpu *c)
-{
+void readAbsY(cpu* c) {
     *c->adL += c->y;
-    if (*c->adL < c->y)
-    {
+    if (*c->adL < c->y) {
         c->temp = cpu_readMemory(c, c->ad);
         (*c->adH)++;
-    }
-    else
-    {
+    } else {
         c->ops[c->currentOp][4](c);
     }
 }
-void writeAbsX(cpu *c)
-{
+void writeAbsX(cpu* c) {
     *c->adL += c->x;
     c->temp = cpu_readMemory(c, c->ad);
     if (*c->adL < c->x)
-    {
         (*c->adH)++;
-    }
 }
-void writeAbsY(cpu *c)
-{
+void writeAbsY(cpu* c) {
     *c->adL += c->y;
-    c->temp = cpu_readMemory(c, c->ad);
-    if (*c->adL < c->y)
-    {
-        (*c->adH)++;
-    }
-}
-
-void writeIndirect(cpu *c)
-{
     c->temp = cpu_readMemory(c, c->ad);
     if (*c->adL < c->y)
         (*c->adH)++;
 }
 
-void pushBStatus(cpu *c)
-{
+void writeIndirect(cpu* c) {
+    c->temp = cpu_readMemory(c, c->ad);
+    if (*c->adL < c->y)
+        (*c->adH)++;
+}
+
+void pushBStatus(cpu* c) {
     if (c->nmi_starting)
         cpu_writeMemory(c, 0x100 + c->stackPointer, (c->flags & ~0x10) | 0x20);
     else
@@ -280,200 +245,156 @@ void pushBStatus(cpu *c)
     c->stackPointer--;
 }
 
-void pushPCL(cpu *c)
-{
+void pushPCL(cpu* c) {
     cpu_writeMemory(c, 0x100 + c->stackPointer, *c->pcL);
     c->stackPointer--;
     if (c->currentOp == 0 && c->nmi_pending)
         c->nmi_starting = true;
 }
-void pushPCH(cpu *c)
-{
+void pushPCH(cpu* c) {
     cpu_writeMemory(c, 0x100 + c->stackPointer, *c->pcH);
     c->stackPointer--;
 }
-void pullPCL(cpu *c)
-{
+void pullPCL(cpu* c) {
     *c->pcL = cpu_readMemory(c, 0x100 + c->stackPointer);
     c->stackPointer++;
 }
-void pullPCH(cpu *c)
-{
+void pullPCH(cpu* c) {
     *c->pcH = cpu_readMemory(c, 0x100 + c->stackPointer);
 }
-void rtiPullPCH(cpu *c)
-{
+void rtiPullPCH(cpu* c) {
     *c->pcH = cpu_readMemory(c, 0x100 + c->stackPointer);
-    if (c->nmi_executing)
-    {
+    if (c->nmi_executing) {
         c->nmi_executing = false;
         c->nmi_pending = false;
     }
 }
-void pullFlags(cpu *c)
-{
+void pullFlags(cpu* c) {
     c->flags = cpu_readMemory(c, 0x100 + c->stackPointer);
     c->stackPointer++;
 }
-void incPC(cpu *c)
-{
+void incPC(cpu* c) {
     c->pc++;
 }
 
-void fetchValue(cpu *c)
-{
+void fetchValue(cpu* c) {
     c->temp = cpu_readMemory(c, c->pc);
     if (!c->nmi_starting)
         c->pc++;
 }
-void readValue(cpu *c)
-{
+void readValue(cpu* c) {
     c->temp = cpu_readMemory(c, c->pc);
 }
 
-void readStack(cpu *c)
-{
+void readStack(cpu* c) {
     c->temp = cpu_readMemory(c, 0x100 + c->stackPointer);
 }
 
-void immediateOp(cpu *c)
-{
+void immediateOp(cpu* c) {
     fetchValue(c);
     c->ops[c->currentOp][++c->tick](c);
 }
-void memoryOp(cpu *c)
-{
+void memoryOp(cpu* c) {
     c->temp = cpu_readMemory(c, c->ad);
     c->ops[c->currentOp][++c->tick](c);
 }
-void writeOp(cpu *c)
-{
+void writeOp(cpu* c) {
     c->ops[c->currentOp][++c->tick](c);
-    writeValue(c, c->ad, c->temp); 
+    writeValue(c, c->ad, c->temp);
 }
-void rmwReadOp(cpu *c)
-{
-    c->ops[c->currentOp][++c->tick](c);
-}
-void accumulatorOp(cpu *c)
-{
+void accumulatorOp(cpu* c) {
     c->temp = c->accumulator;
     c->ops[c->currentOp][++c->tick](c);
     loadRegister(c, &c->accumulator, c->temp);
 }
 
-void jmp(cpu *c)
-{
+void jmp(cpu* c) {
     *c->pcH = cpu_readMemory(c, c->pc);
     *c->pcL = *c->adL;
 }
-void jmpIndirect(cpu *c)
-{
+void jmpIndirect(cpu* c) {
     (*c->adL)++;
     *c->pcH = cpu_readMemory(c, c->ad);
     *c->pcL = c->temp;
 }
-void pla(cpu *c)
-{
+void pla(cpu* c) {
     loadRegister(c, &c->accumulator, cpu_readMemory(c, 0x100 + c->stackPointer));
 }
-void plp(cpu *c)
-{
+void plp(cpu* c) {
     c->flags = cpu_readMemory(c, 0x100 + c->stackPointer);
 }
-void pha(cpu *c)
-{
+void pha(cpu* c) {
     cpu_writeMemory(c, 0x100 + c->stackPointer, c->accumulator);
     c->stackPointer--;
 }
-void php(cpu *c)
-{
+void php(cpu* c) {
     cpu_writeMemory(c, 0x100 + c->stackPointer, c->flags | 0x30);
-    c->stackPointer--; 
+    c->stackPointer--;
 }
-void ins(cpu *c)
-{
+void ins(cpu* c) {
     c->stackPointer++;
 }
-void nop(cpu *c)
-{
+void nop(cpu* c) {
     c->temp = cpu_readMemory(c, c->pc);
 }
-void dop(cpu *c)
-{
+void dop(cpu* c) {
     c->temp = cpu_readMemory(c, c->pc);
     c->pc++;
 }
-void tax(cpu *c)
-{
+void tax(cpu* c) {
     loadRegister(c, &c->x, c->accumulator);
 }
-void tay(cpu *c)
-{
+void tay(cpu* c) {
     loadRegister(c, &c->y, c->accumulator);
 }
-void tsx(cpu *c)
-{
+void tsx(cpu* c) {
     loadRegister(c, &c->x, c->stackPointer);
 }
-void txa(cpu *c)
-{
+void txa(cpu* c) {
     loadRegister(c, &c->accumulator, c->x);
 }
-void txs(cpu *c)
-{
+void txs(cpu* c) {
     c->stackPointer = c->x;
 }
-void tya(cpu *c)
-{
+void tya(cpu* c) {
     loadRegister(c, &c->accumulator, c->y);
 }
-void sec(cpu *c)
-{
+void sec(cpu* c) {
     c->flags |= CARRY;
 }
-void sei(cpu *c)
-{
+void sei(cpu* c) {
     c->flags |= IRQ_DISABLE;
 }
-void sed(cpu *c)
-{
+void sed(cpu* c) {
     c->flags |= DECIMAL;
 }
-void clc(cpu *c)
-{
+void clc(cpu* c) {
     c->flags &= ~CARRY;
 }
-void cli(cpu *c)
-{
+void cli(cpu* c) {
     c->flags &= ~IRQ_DISABLE;
 }
-void cld(cpu *c)
-{
+void cld(cpu* c) {
     c->flags &= ~DECIMAL;
 }
-void clv(cpu *c)
-{
+void clv(cpu* c) {
     c->flags &= ~OVERFLOW;
 }
-void lsr(cpu *c)
-{
+void lsr(cpu* c) {
     if (c->temp & 0x1)
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
     c->temp >>= 1;
 }
-void asl(cpu *c)
-{
+void asl(cpu* c) {
     if (c->temp & 0x80)
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
     c->temp <<= 1;
 }
-void ror(cpu *c)
-{
+void ror(cpu* c) {
     uint8_t val = c->temp >> 1;
     if (c->flags & CARRY)
         val |= 0x80;
@@ -485,8 +406,7 @@ void ror(cpu *c)
         c->flags &= ~CARRY;
     c->temp = val;
 }
-void rol(cpu *c)
-{
+void rol(cpu* c) {
     uint8_t val = c->temp << 1;
     if (c->flags & CARRY)
         val |= 0x1;
@@ -498,114 +418,88 @@ void rol(cpu *c)
         c->flags &= ~CARRY;
     c->temp = val;
 }
-void inx(cpu *c)
-{
-    loadRegister(c, &c->x, c->x + 1); 
+void inx(cpu* c) {
+    loadRegister(c, &c->x, c->x + 1);
 }
-void iny(cpu *c)
-{
+void iny(cpu* c) {
     loadRegister(c, &c->y, c->y + 1);
 }
-void dex(cpu *c)
-{
+void dex(cpu* c) {
     loadRegister(c, &c->x, c->x - 1);
 }
-void dey(cpu *c)
-{
+void dey(cpu* c) {
     loadRegister(c, &c->y, c->y - 1);
 }
-void lda(cpu *c)
-{
+void lda(cpu* c) {
     loadRegister(c, &c->accumulator, c->temp);
 }
-void ldx(cpu *c)
-{
+void ldx(cpu* c) {
     loadRegister(c, &c->x, c->temp);
 }
-void ldy(cpu *c)
-{
+void ldy(cpu* c) {
     loadRegister(c, &c->y, c->temp);
 }
-void lax(cpu *c)
-{
+void lax(cpu* c) {
     loadRegister(c, &c->accumulator, c->temp);
     loadRegister(c, &c->x, c->temp);
 }
-void eor(cpu *c)
-{
+void eor(cpu* c) {
     loadRegister(c, &c->accumulator, (c->temp ^ c->accumulator));
 }
-void and(cpu * c)
-{
+void and (cpu * c) {
     loadRegister(c, &c->accumulator, (c->temp & c->accumulator));
 }
-void anc(cpu *c)
-{
+void anc(cpu* c) {
     and(c);
     if (c->accumulator & 0x80)
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
 }
-void alr(cpu *c)
-{
+void alr(cpu* c) {
     and(c);
     c->temp = c->accumulator;
     lsr(c);
     loadRegister(c, &c->accumulator, c->temp);
 }
-void arr(cpu *c)
-{
+void arr(cpu* c) {
     and(c);
     c->temp = c->accumulator;
     ror(c);
     loadRegister(c, &c->accumulator, c->temp);
-    if (c->accumulator & 0x20)
-    {
-        if (c->accumulator & 0x40)
-        {
+    if (c->accumulator & 0x20) {
+        if (c->accumulator & 0x40) {
             c->flags |= CARRY;
             c->flags &= ~OVERFLOW;
-        }
-        else
-        {
+        } else {
             c->flags &= ~CARRY;
             c->flags |= OVERFLOW;
         }
-    }
-    else
-    {
-        if (c->accumulator & 0x40)
-        {
+    } else {
+        if (c->accumulator & 0x40) {
             c->flags |= CARRY;
             c->flags |= OVERFLOW;
-        }
-        else
-        {
+        } else {
             c->flags &= ~CARRY;
             c->flags &= ~OVERFLOW;
         }
     }
 }
-void atx(cpu *c)
-{
+void atx(cpu* c) {
     loadRegister(c, &c->accumulator, c->temp);
     loadRegister(c, &c->x, c->accumulator);
 }
-void axs(cpu *c)
-{
+void axs(cpu* c) {
     if (c->temp <= (c->accumulator & c->x))
         c->flags |= CARRY;
     else
         c->flags &= ~CARRY;
     loadRegister(c, &c->x, (c->accumulator & c->x) - c->temp);
 }
-void ora(cpu *c)
-{
+void ora(cpu* c) {
     loadRegister(c, &c->accumulator, (c->temp | c->accumulator));
 }
-void adc(cpu *c)
-{
+void adc(cpu* c) {
     uint16_t sum = c->accumulator + c->temp + (c->flags & CARRY);
     uint8_t result = sum & 0xff;
     if (sum & 0x100)
@@ -616,15 +510,13 @@ void adc(cpu *c)
         c->flags |= OVERFLOW;
     else
         c->flags &= ~OVERFLOW;
-    loadRegister(c, &c->accumulator, result);  
+    loadRegister(c, &c->accumulator, result);
 }
-void sbc(cpu *c)
-{
+void sbc(cpu* c) {
     c->temp = ~c->temp;
     adc(c);
 }
-void cmp(cpu *c)
-{
+void cmp(cpu* c) {
     if (c->temp <= c->accumulator)
         c->flags |= CARRY;
     else
@@ -636,10 +528,9 @@ void cmp(cpu *c)
     if ((c->accumulator - c->temp) & 0x80)
         c->flags |= NEGATIVE;
     else
-        c->flags &= ~NEGATIVE; 
+        c->flags &= ~NEGATIVE;
 }
-void cpx(cpu *c)
-{
+void cpx(cpu* c) {
     if (c->temp <= c->x)
         c->flags |= CARRY;
     else
@@ -651,10 +542,9 @@ void cpx(cpu *c)
     if ((c->x - c->temp) & 0x80)
         c->flags |= NEGATIVE;
     else
-        c->flags &= ~NEGATIVE;  
+        c->flags &= ~NEGATIVE;
 }
-void cpy(cpu *c)
-{
+void cpy(cpu* c) {
     if (c->temp <= c->y)
         c->flags |= CARRY;
     else
@@ -666,10 +556,9 @@ void cpy(cpu *c)
     if ((c->y - c->temp) & 0x80)
         c->flags |= NEGATIVE;
     else
-        c->flags &= ~NEGATIVE; 
+        c->flags &= ~NEGATIVE;
 }
-void bit(cpu *c)
-{
+void bit(cpu* c) {
     uint8_t val = cpu_readMemory(c, c->ad);
     if (val & c->accumulator)
         c->flags &= ~ZERO;
@@ -682,341 +571,277 @@ void bit(cpu *c)
     if (val & 0x40)
         c->flags |= OVERFLOW;
     else
-        c->flags &= ~OVERFLOW;   
+        c->flags &= ~OVERFLOW;
 }
-void sta(cpu *c)
-{
+void sta(cpu* c) {
     cpu_writeMemory(c, c->ad, c->accumulator);
 }
-void stx(cpu *c)
-{
+void stx(cpu* c) {
     cpu_writeMemory(c, c->ad, c->x);
 }
-void aax(cpu *c)
-{
-    cpu_writeMemory(c, c->ad, c->accumulator & c->x);  
+void aax(cpu* c) {
+    cpu_writeMemory(c, c->ad, c->accumulator & c->x);
 }
-void sty(cpu *c)
-{
-    cpu_writeMemory(c, c->ad, c->y);  
+void sty(cpu* c) {
+    cpu_writeMemory(c, c->ad, c->y);
 }
-void sya(cpu *c)
-{
+void sya(cpu* c) {
     uint8_t result = c->y & (*c->adH + 1);
     if (cpu_readMemory(c, c->pc - 1) != *c->adH)
         *c->adH = result;
-    cpu_writeMemory(c, c->ad, result);  
+    cpu_writeMemory(c, c->ad, result);
 }
-void sxa(cpu *c)
-{
+void sxa(cpu* c) {
     uint8_t result = c->x & (*c->adH + 1);
     if (cpu_readMemory(c, c->pc - 1) != *c->adH)
         *c->adH = result;
-    cpu_writeMemory(c, c->ad, result); 
+    cpu_writeMemory(c, c->ad, result);
 }
-void dec(cpu *c)
-{
+void dec(cpu* c) {
     c->temp--;
 }
-void inc(cpu *c)
-{
+void inc(cpu* c) {
     c->temp++;
 }
-void dcp(cpu *c)
-{
+void dcp(cpu* c) {
     dec(c);
     writeValue(c, c->ad, c->temp);
     readAddress(c);
     cmp(c);
 }
-void isc(cpu *c)
-{
+void isc(cpu* c) {
     inc(c);
     writeValue(c, c->ad, c->temp);
     readAddress(c);
     sbc(c);
 }
-void rla(cpu *c)
-{
+void rla(cpu* c) {
     rol(c);
     writeValue(c, c->ad, c->temp);
     readAddress(c);
     and(c);
 }
-void rra(cpu *c)
-{
+void rra(cpu* c) {
     ror(c);
     writeValue(c, c->ad, c->temp);
     readAddress(c);
-    adc(c); 
+    adc(c);
 }
-void slo(cpu *c)
-{
+void slo(cpu* c) {
     asl(c);
     writeValue(c, c->ad, c->temp);
     readAddress(c);
-    ora(c); 
+    ora(c);
 }
-void sre(cpu *c)
-{
+void sre(cpu* c) {
     lsr(c);
     writeValue(c, c->ad, c->temp);
     readAddress(c);
-    eor(c); 
+    eor(c);
 }
-void beq(cpu *c)
-{
+void beq(cpu* c) {
     if (c->flags & ZERO)
-    {
         *c->pcL += c->temp;
-    }
     else
-    {
         fetchOp(c);
-    }
 }
-void bne(cpu *c)
-{
+void bne(cpu* c) {
     if (!(c->flags & ZERO))
-    {
         *c->pcL += c->temp;
-    }
     else
-    {
         fetchOp(c);
-    }
 }
-void bmi(cpu *c)
-{
+void bmi(cpu* c) {
     if (c->flags & NEGATIVE)
-    {
         *c->pcL += c->temp;
-    }
     else
-    {
         fetchOp(c);
-    }
 }
-void bpl(cpu *c)
-{
+void bpl(cpu* c) {
     if (!(c->flags & NEGATIVE))
-    {
         *c->pcL += c->temp;
-    }
     else
-    {
         fetchOp(c);
-    }
 }
-void bcs(cpu *c)
-{
+void bcs(cpu* c) {
     if (c->flags & CARRY)
-    {
         *c->pcL += c->temp;
-    }
     else
-    {
         fetchOp(c);
-    }
 }
-void bcc(cpu *c)
-{
+void bcc(cpu* c) {
     if (!(c->flags & CARRY))
-    {
         *c->pcL += c->temp;
-    }
     else
-    {
         fetchOp(c);
-    }
 }
-void bvs(cpu *c)
-{
+void bvs(cpu* c) {
     if (c->flags & OVERFLOW)
-    {
         *c->pcL += c->temp;
-    }
     else
-    {
         fetchOp(c);
-    }
 }
-void bvc(cpu *c)
-{
+void bvc(cpu* c) {
     if (!(c->flags & OVERFLOW))
-    {
         *c->pcL += c->temp;
-    }
     else
-    {
         fetchOp(c);
-    }
 }
-void branch(cpu *c)
-{
-    if (c->temp < 128)
-    {
-        if (*c->pcL < c->temp)
-        {
+void branch(cpu* c) {
+    if (c->temp < 128) {
+        if (*c->pcL < c->temp) {
             (*c->pcH)++;
             c->tick++;
-        }
-        else
-        {
+        } else {
             fetchOp(c);
         }
-    }
-    else
-    {
+    } else {
         uint8_t prev = *c->pcL - c->temp;
-        if (*c->pcL > prev)
-        {
+        if (*c->pcL > prev) {
             (*c->pcH)--;
             c->tick++;
-        }
-        else
-        {
+        } else {
             fetchOp(c);
         }
     }
 }
 
-void stuck(cpu *c)
-{
+void stuck(cpu* c) {
     c->tick = 0;
 }
 
-void cpu_mapMemory(cpu *c, uint16_t address, uint8_t *start, uint16_t size, uint16_t mirrors, enum access_t rw)
-{
-    for (int m = 0; m < mirrors; m++)
-    {
-        for (int n = 0; n < size; n++)
-        {
+void cpu_mapMemory(cpu* c,
+                   uint16_t address,
+                   uint8_t* start,
+                   uint16_t size,
+                   uint16_t mirrors,
+                   enum access_t rw) {
+    for (int m = 0; m < mirrors; m++) {
+        for (int n = 0; n < size; n++) {
             if (rw == READ || rw == READ_WRITE)
-            {
                 c->memory_read[address + (m * size) + n] = start + n;
-            }
             if (rw == WRITE || rw == READ_WRITE)
-            {
                 c->memory_write[address + (m * size) + n] = start + n;
-            }
         }
     }
 }
-void cpu_mapNMI(cpu *c, bool *pointer)
-{
+void cpu_mapNMI(cpu* c, bool* pointer) {
     c->nmi = pointer;
 }
-void cpu_mapIRQ(cpu *c, bool *pointer)
-{
+void cpu_mapIRQ(cpu* c, bool* pointer) {
     c->irq = pointer;
 }
-bool *cpu_getRW(cpu *c)
-{
+bool* cpu_getRW(cpu* c) {
     return &(c->write);
 }
-uint16_t *cpu_getAddress(cpu *c)
-{
+uint16_t* cpu_getAddress(cpu* c) {
     return &(c->address);
 }
 
-void map_operation(cpu *c, uint8_t opcode, enum AddressMode_t addr_mode, enum InstructionMode_t instr_mode, opPtr op)
-{
+void map_operation(cpu* c,
+                   uint8_t opcode,
+                   enum AddressMode_t addr_mode,
+                   enum InstructionMode_t instr_mode,
+                   opPtr op) {
     c->ops[opcode][0] = fetchOp;
     int op_offset = 0;
-    switch (addr_mode)
-    {
-    case IMPLIED:
-        op_offset = 1;
-        break;
-    case ACCUMULATOR:
-        c->ops[opcode][1] = accumulatorOp;
-        op_offset = 2;
-        break;
-    case IMMEDIATE:
-        c->ops[opcode][1] = immediateOp;
-        op_offset = 2;
-        break;
-    case ABSOLUTE:
-        c->ops[opcode][1] = fetchADL;
-        c->ops[opcode][2] = fetchADH;
-        c->ops[opcode][3] = memoryOp;
-        op_offset = 4;
-        break;
-    case ZEROPAGE:
-        c->ops[opcode][1] = fetchADL;
-        c->ops[opcode][2] = memoryOp;
-        op_offset = 3;
-        break;
-    case ZEROPAGE_X:
-        c->ops[opcode][1] = fetchADL;
-        c->ops[opcode][2] = readZpX;
-        c->ops[opcode][3] = memoryOp;
-        op_offset = 4;
-        break;
-    case ZEROPAGE_Y:
-        c->ops[opcode][1] = fetchADL;
-        c->ops[opcode][2] = readZpY;
-        c->ops[opcode][3] = memoryOp;
-        op_offset = 4;
-        break;
-    case ABSOLUTE_X:
-        c->ops[opcode][1] = fetchADL;
-        c->ops[opcode][2] = fetchADH;
-        c->ops[opcode][3] = readAbsX;
-        c->ops[opcode][4] = memoryOp;
-        op_offset = 5;
-        break;
-    case ABSOLUTE_Y:
-        c->ops[opcode][1] = fetchADL;
-        c->ops[opcode][2] = fetchADH;
-        c->ops[opcode][3] = readAbsY;
-        c->ops[opcode][4] = memoryOp;
-        op_offset = 5;
-        break;
-    case INDIRECT_X:
-        c->ops[opcode][1] = fetchADL;
-        c->ops[opcode][2] = readAddress;
-        c->ops[opcode][3] = fetchIndirectXLow;
-        c->ops[opcode][4] = fetchIndirectXHigh;
-        c->ops[opcode][5] = memoryOp;
-        op_offset = 6;
-        break;
-    case INDIRECT_Y:
-        c->ops[opcode][1] = fetchADL;
-        c->ops[opcode][2] = readAddress;
-        c->ops[opcode][3] = fetchIndirectY;
-        c->ops[opcode][4] = readIndirect;
-        c->ops[opcode][5] = memoryOp;
-        op_offset = 6;
-        break;
-    case RELATIVE:
-        c->ops[opcode][1] = fetchValue;
-        op_offset = 2;
-        c->ops[opcode][3] = branch;
-        break;
+
+    switch (addr_mode) {
+        case IMPLIED:
+            op_offset = 1;
+            break;
+        case ACCUMULATOR:
+            c->ops[opcode][1] = accumulatorOp;
+            op_offset = 2;
+            break;
+        case IMMEDIATE:
+            c->ops[opcode][1] = immediateOp;
+            op_offset = 2;
+            break;
+        case ABSOLUTE:
+            c->ops[opcode][1] = fetchADL;
+            c->ops[opcode][2] = fetchADH;
+            c->ops[opcode][3] = memoryOp;
+            op_offset = 4;
+            break;
+        case ZEROPAGE:
+            c->ops[opcode][1] = fetchADL;
+            c->ops[opcode][2] = memoryOp;
+            op_offset = 3;
+            break;
+        case ZEROPAGE_X:
+            c->ops[opcode][1] = fetchADL;
+            c->ops[opcode][2] = readZpX;
+            c->ops[opcode][3] = memoryOp;
+            op_offset = 4;
+            break;
+        case ZEROPAGE_Y:
+            c->ops[opcode][1] = fetchADL;
+            c->ops[opcode][2] = readZpY;
+            c->ops[opcode][3] = memoryOp;
+            op_offset = 4;
+            break;
+        case ABSOLUTE_X:
+            c->ops[opcode][1] = fetchADL;
+            c->ops[opcode][2] = fetchADH;
+            c->ops[opcode][3] = readAbsX;
+            c->ops[opcode][4] = memoryOp;
+            op_offset = 5;
+            break;
+        case ABSOLUTE_Y:
+            c->ops[opcode][1] = fetchADL;
+            c->ops[opcode][2] = fetchADH;
+            c->ops[opcode][3] = readAbsY;
+            c->ops[opcode][4] = memoryOp;
+            op_offset = 5;
+            break;
+        case INDIRECT_X:
+            c->ops[opcode][1] = fetchADL;
+            c->ops[opcode][2] = readAddress;
+            c->ops[opcode][3] = fetchIndirectXLow;
+            c->ops[opcode][4] = fetchIndirectXHigh;
+            c->ops[opcode][5] = memoryOp;
+            op_offset = 6;
+            break;
+        case INDIRECT_Y:
+            c->ops[opcode][1] = fetchADL;
+            c->ops[opcode][2] = readAddress;
+            c->ops[opcode][3] = fetchIndirectY;
+            c->ops[opcode][4] = readIndirect;
+            c->ops[opcode][5] = memoryOp;
+            op_offset = 6;
+            break;
+        case RELATIVE:
+            c->ops[opcode][1] = fetchValue;
+            op_offset = 2;
+            c->ops[opcode][3] = branch;
+            break;
     }
-    c->ops[opcode][op_offset] = op;
-    if (instr_mode == RMW_OP || instr_mode == RMW_READ_OP)
-    {
-        c->ops[opcode][op_offset - 1] = readAddress;
-        c->ops[opcode][op_offset] = writeAddress;
-        c->ops[opcode][op_offset + 1] = writeOp;
-        c->ops[opcode][op_offset + 2] = op;
-    }
-    if (instr_mode == RMW_READ_OP)
-    {
-        c->ops[opcode][op_offset + 1] = rmwReadOp;
+
+    switch (instr_mode) {
+        case RMW_OP:
+            c->ops[opcode][op_offset - 1] = readAddress;
+            c->ops[opcode][op_offset] = writeAddress;
+            c->ops[opcode][op_offset + 1] = writeOp;
+            c->ops[opcode][op_offset + 2] = op;
+            break;
+        case RMW_READ_OP:
+            c->ops[opcode][op_offset - 1] = readAddress;
+            c->ops[opcode][op_offset] = writeAddress;
+            c->ops[opcode][op_offset + 1] = op;
+            break;
+        default:
+            c->ops[opcode][op_offset] = op;
+            break;
     }
 }
 
-cpu *cpu_create()
-{
-    cpu *newCPU = malloc(sizeof(cpu));
+cpu* cpu_create() {
+    cpu* newCPU = malloc(sizeof(cpu));
 
-    newCPU->pcL = (uint8_t *)&newCPU->pc;
+    newCPU->pcL = (uint8_t*)&newCPU->pc;
     newCPU->pcH = newCPU->pcL + 1;
-    newCPU->adL = (uint8_t *)&newCPU->ad;
+    newCPU->adL = (uint8_t*)&newCPU->ad;
     newCPU->adH = newCPU->adL + 1;
     newCPU->tick = 0xff;
     newCPU->stackPointer = 0xfd;
@@ -1025,17 +850,14 @@ cpu *cpu_create()
     newCPU->nmi_prev = false;
     newCPU->irq_pending = false;
     newCPU->nmi_starting = false;
-    newCPU->nmi = (bool *)&newCPU->dummy;
-    newCPU->irq = (bool *)&newCPU->dummy;
-    for (int i = 0; i < 0x10000; i++)
-    {
+    newCPU->nmi = (bool*)&newCPU->dummy;
+    newCPU->irq = (bool*)&newCPU->dummy;
+    for (int i = 0; i < 0x10000; i++) {
         newCPU->memory_read[i] = &(newCPU->dummy);
         newCPU->memory_write[i] = &(newCPU->dummy);
     }
-    for (int i = 0; i < 0x100; i++)
-    {
-        for (int j = 0; j < 10; j++)
-        {
+    for (int i = 0; i < 0x100; i++) {
+        for (int j = 0; j < 10; j++) {
             newCPU->ops[i][j] = fetchOp;
         }
     }
@@ -1068,7 +890,7 @@ cpu *cpu_create()
 
     newCPU->ops[0x48][1] = readValue;
     newCPU->ops[0x48][2] = pha;
-    
+
     newCPU->ops[0x08][1] = readValue;
     newCPU->ops[0x08][2] = php;
 
@@ -1091,7 +913,7 @@ cpu *cpu_create()
     map_operation(newCPU, 0x29, IMMEDIATE, READ_OP, and);
     map_operation(newCPU, 0x49, IMMEDIATE, READ_OP, eor);
     map_operation(newCPU, 0x69, IMMEDIATE, READ_OP, adc);
-    map_operation(newCPU, 0xa9, IMMEDIATE, READ_OP, lda);   
+    map_operation(newCPU, 0xa9, IMMEDIATE, READ_OP, lda);
     map_operation(newCPU, 0xc9, IMMEDIATE, READ_OP, cmp);
     map_operation(newCPU, 0xe9, IMMEDIATE, READ_OP, sbc);
     map_operation(newCPU, 0xeb, IMMEDIATE, READ_OP, sbc);
@@ -1107,7 +929,7 @@ cpu *cpu_create()
     map_operation(newCPU, 0x25, ZEROPAGE, READ_OP, and);
     map_operation(newCPU, 0x45, ZEROPAGE, READ_OP, eor);
     map_operation(newCPU, 0x65, ZEROPAGE, READ_OP, adc);
-    map_operation(newCPU, 0xa5, ZEROPAGE, READ_OP, lda);   
+    map_operation(newCPU, 0xa5, ZEROPAGE, READ_OP, lda);
     map_operation(newCPU, 0xc5, ZEROPAGE, READ_OP, cmp);
     map_operation(newCPU, 0xe5, ZEROPAGE, READ_OP, sbc);
 
@@ -1115,7 +937,7 @@ cpu *cpu_create()
     map_operation(newCPU, 0x35, ZEROPAGE_X, READ_OP, and);
     map_operation(newCPU, 0x55, ZEROPAGE_X, READ_OP, eor);
     map_operation(newCPU, 0x75, ZEROPAGE_X, READ_OP, adc);
-    map_operation(newCPU, 0xb5, ZEROPAGE_X, READ_OP, lda);   
+    map_operation(newCPU, 0xb5, ZEROPAGE_X, READ_OP, lda);
     map_operation(newCPU, 0xd5, ZEROPAGE_X, READ_OP, cmp);
     map_operation(newCPU, 0xf5, ZEROPAGE_X, READ_OP, sbc);
 
@@ -1123,7 +945,7 @@ cpu *cpu_create()
     map_operation(newCPU, 0x2d, ABSOLUTE, READ_OP, and);
     map_operation(newCPU, 0x4d, ABSOLUTE, READ_OP, eor);
     map_operation(newCPU, 0x6d, ABSOLUTE, READ_OP, adc);
-    map_operation(newCPU, 0xad, ABSOLUTE, READ_OP, lda);   
+    map_operation(newCPU, 0xad, ABSOLUTE, READ_OP, lda);
     map_operation(newCPU, 0xcd, ABSOLUTE, READ_OP, cmp);
     map_operation(newCPU, 0xed, ABSOLUTE, READ_OP, sbc);
 
@@ -1131,7 +953,7 @@ cpu *cpu_create()
     map_operation(newCPU, 0x3d, ABSOLUTE_X, READ_OP, and);
     map_operation(newCPU, 0x5d, ABSOLUTE_X, READ_OP, eor);
     map_operation(newCPU, 0x7d, ABSOLUTE_X, READ_OP, adc);
-    map_operation(newCPU, 0xbd, ABSOLUTE_X, READ_OP, lda);   
+    map_operation(newCPU, 0xbd, ABSOLUTE_X, READ_OP, lda);
     map_operation(newCPU, 0xdd, ABSOLUTE_X, READ_OP, cmp);
     map_operation(newCPU, 0xfd, ABSOLUTE_X, READ_OP, sbc);
 
@@ -1139,7 +961,7 @@ cpu *cpu_create()
     map_operation(newCPU, 0x39, ABSOLUTE_Y, READ_OP, and);
     map_operation(newCPU, 0x59, ABSOLUTE_Y, READ_OP, eor);
     map_operation(newCPU, 0x79, ABSOLUTE_Y, READ_OP, adc);
-    map_operation(newCPU, 0xb9, ABSOLUTE_Y, READ_OP, lda);   
+    map_operation(newCPU, 0xb9, ABSOLUTE_Y, READ_OP, lda);
     map_operation(newCPU, 0xd9, ABSOLUTE_Y, READ_OP, cmp);
     map_operation(newCPU, 0xf9, ABSOLUTE_Y, READ_OP, sbc);
 
@@ -1147,7 +969,7 @@ cpu *cpu_create()
     map_operation(newCPU, 0x21, INDIRECT_X, READ_OP, and);
     map_operation(newCPU, 0x41, INDIRECT_X, READ_OP, eor);
     map_operation(newCPU, 0x61, INDIRECT_X, READ_OP, adc);
-    map_operation(newCPU, 0xa1, INDIRECT_X, READ_OP, lda);   
+    map_operation(newCPU, 0xa1, INDIRECT_X, READ_OP, lda);
     map_operation(newCPU, 0xc1, INDIRECT_X, READ_OP, cmp);
     map_operation(newCPU, 0xe1, INDIRECT_X, READ_OP, sbc);
 
@@ -1155,7 +977,7 @@ cpu *cpu_create()
     map_operation(newCPU, 0x31, INDIRECT_Y, READ_OP, and);
     map_operation(newCPU, 0x51, INDIRECT_Y, READ_OP, eor);
     map_operation(newCPU, 0x71, INDIRECT_Y, READ_OP, adc);
-    map_operation(newCPU, 0xb1, INDIRECT_Y, READ_OP, lda);   
+    map_operation(newCPU, 0xb1, INDIRECT_Y, READ_OP, lda);
     map_operation(newCPU, 0xd1, INDIRECT_Y, READ_OP, cmp);
     map_operation(newCPU, 0xf1, INDIRECT_Y, READ_OP, sbc);
 
@@ -1361,15 +1183,13 @@ cpu *cpu_create()
     return newCPU;
 }
 
-void cpu_reset(cpu *c)
-{
+void cpu_reset(cpu* c) {
     c->flags |= IRQ_DISABLE;
     *c->pcL = cpu_readMemory(c, 0xfffc);
     *c->pcH = cpu_readMemory(c, 0xfffd);
 }
 
-void cpu_printState(cpu *c)
-{
+void cpu_printState(cpu* c) {
     printf("OP:%s (%02hhx)", instrs[c->currentOp], c->currentOp);
     printf(" PC:%04hx", c->pc);
     printf(" A:%02hhx", c->accumulator);
@@ -1396,21 +1216,17 @@ void cpu_printState(cpu *c)
     else
         printf("c ");
     printf(" Stack: ");
-    for (int i = 0xff; i > c->stackPointer; i--)
-    {
+    for (int i = 0xff; i > c->stackPointer; i--) {
         printf("%02hhx, ", *c->memory_read[0x100 + i]);
     }
 }
 
-void cpu_executeCycle(cpu *c)
-{
+void cpu_executeCycle(cpu* c) {
     c->tick++;
     c->write = false;
     c->ops[c->currentOp][c->tick](c);
     if (!c->nmi_pending && !c->nmi_executing && !c->nmi_starting)
-    {
         c->nmi_pending = (*c->nmi && !c->nmi_prev);
-    }
     c->irq_pending = *c->irq;
     c->nmi_prev = *c->nmi;
 }

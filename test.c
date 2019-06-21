@@ -1,48 +1,40 @@
 #define SDL_MAIN_HANDLED
+#include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <SDL2/SDL.h>
-#include "nes.h"
 #include "cpu.h"
+#include "nes.h"
 #include "ppu.h"
 
-int main(int n, char **args)
-{
-    if (n != 2)
-    {
+int main(int n, char** args) {
+    if (n != 2) {
         printf("Usage: ./nes rom.nes\n");
         exit(1);
     }
-    SDL_Surface *screen;
-    SDL_Window *window;
+    SDL_Surface* screen;
+    SDL_Window* window;
 
     SDL_Init(SDL_INIT_VIDEO);
-    window = SDL_CreateWindow("NES Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 256, 240, SDL_WINDOW_OPENGL);
+    window = SDL_CreateWindow("NES Emulator", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 256,
+                              240, SDL_WINDOW_OPENGL);
 
     screen = SDL_GetWindowSurface(window);
 
-    nes *nes = nes_create();
+    nes* nes = nes_create();
     nes_loadROM(nes, args[1]);
     nes_loadPalette(nes, "pal.pal");
     nes_setFramebuffer(nes, screen->pixels);
     cpu_reset(nes->cpu);
     bool quit = false;
     bool paused = true;
-    while (!quit)
-    {
+    while (!quit) {
         SDL_Event e;
-        while (SDL_PollEvent(&e))
-        {
-            if (e.type == SDL_KEYDOWN)
-            {
-                if (paused)
-                {
-                    if (e.key.keysym.scancode == SDL_SCANCODE_SPACE)
-                    {
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_KEYDOWN) {
+                if (paused) {
+                    if (e.key.keysym.scancode == SDL_SCANCODE_SPACE) {
                         nes_emulateFrame(nes);
-                    }
-                    else
-                    {
+                    } else {
                         cpu_printState(nes->cpu);
                         printf("\n");
                         ppu_print(nes->ppu);
@@ -50,13 +42,11 @@ int main(int n, char **args)
                     }
                 }
                 if (e.key.keysym.scancode == SDL_SCANCODE_P)
-                {
                     paused = !paused;
-                }
             }
             if (e.type == SDL_QUIT)
                 quit = true;
-            const uint8_t *key_state = SDL_GetKeyboardState(NULL);
+            const uint8_t* key_state = SDL_GetKeyboardState(NULL);
             uint8_t pad_state = 0;
             if (key_state[SDL_SCANCODE_X])
                 pad_state |= 0x1;
@@ -76,8 +66,7 @@ int main(int n, char **args)
                 pad_state |= 0x80;
             nes_updatePadState(nes, pad_state);
         }
-        if (!paused)
-        {
+        if (!paused) {
             nes_emulateFrame(nes);
             SDL_Delay(10);
         }
