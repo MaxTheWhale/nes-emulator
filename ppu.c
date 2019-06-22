@@ -52,8 +52,8 @@ struct ppu {
     uint8_t sprite_shift_high[8];
     uint8_t sprite_counter[8];
     uint8_t sprite_offset[8];
-    uint8_t eval_n : 6;
-    uint8_t eval_m : 2;
+    uint8_t eval_n;
+    uint8_t eval_m;
     uint8_t eval_sn;
     uint8_t sprites_on_line;
     uint8_t eval_temp;
@@ -476,71 +476,91 @@ void increment_vertical_v(ppu* p) {
     }
 }
 
+void eval_reset(ppu* p) {
+    p->eval_m = 0;
+    p->eval_n = 0;
+    p->eval_sn = 0;
+    p->eval_stage = 0;
+    p->sprite0_next_line = false;
+}
+
+void eval_read(ppu* p) {
+    if ((p->eval_n * 4 + p->eval_m + p->OAMADDR) < 256)
+        p->eval_temp = p->oam[p->eval_n * 4 + p->eval_m + p->OAMADDR];
+    else
+        p->eval_stage = 4;
+}
+
+void eval_write(ppu* p) {
+    if (p->eval_sn < 8)
+        p->secondary_oam[p->eval_sn * 4 + p->eval_m] = p->eval_temp;
+}
+
+bool sprite_in_range(uint8_t spr_y, uint16_t screen_y) {
+    if (spr_y + 7 >= screen_y && spr_y <= screen_y)
+        return true;
+    else
+        return false;
+}
+
+void eval_odd_cycle(ppu* p) {
+    switch (p->eval_stage) {
+        case 1:
+            p->eval_m++;
+            break;
+        case 2:
+            p->eval_m = 0;
+            p->eval_n++;
+            if (p->eval_n == 0)
+                p->eval_stage = 4;
+            else if (p->eval_sn < 8)
+                p->eval_stage = 0;
+            else
+                p->eval_stage = 3;
+            break;
+    }
+    eval_read(p);
+}
+
+void eval_even_cycle(ppu* p) {
+    eval_write(p);
+    switch (p->eval_stage) {
+        case 0:
+            if (sprite_in_range(p->eval_temp, p->scanline))
+                p->eval_stage = 1;
+            else
+                p->eval_stage = 2;
+            break;
+        case 1:
+            if (p->eval_m == 3) {
+                p->eval_stage = 2;
+                p->eval_sn++;
+                if (p->eval_n == 0)
+                    p->sprite0_next_line = true;
+            }
+            break;
+        case 3:
+            if (sprite_in_range(p->eval_temp, p->scanline)) {
+                p->PPUSTATUS &= ~0x40;
+            } else {
+                p->eval_m++;
+                p->eval_n++;
+            }
+            break;
+    }
+}
+
 void sprite_evaluation(ppu* p) {
     if (p->dot == 0) {
-        p->eval_m = 0;
-        p->eval_n = 0;
-        p->eval_sn = 0;
-        p->eval_stage = 0;
-        p->sprite0_next_line = false;
+        eval_reset(p);
     }
     if (p->dot >= 1 && p->dot <= 64)
         p->secondary_oam[(p->dot - 1) / 2] = 0xff;
     if (p->dot >= 65 && p->dot <= 256) {
         if (p->dot % 2) {
-            switch (p->eval_stage) {
-                case 0:
-                    p->eval_temp = p->oam[p->eval_n * 4 + p->eval_m];
-                    break;
-                case 1:
-                    p->eval_m++;
-                    p->eval_temp = p->oam[p->eval_n * 4 + p->eval_m];
-                    break;
-                case 2:
-                    p->eval_m = 0;
-                    p->eval_n++;
-                    p->eval_temp = p->oam[p->eval_n * 4];
-                    if (p->eval_n == 0)
-                        p->eval_stage = 4;
-                    else if (p->eval_sn < 8)
-                        p->eval_stage = 0;
-                    else
-                        p->eval_stage = 3;
-                    break;
-                case 3:
-                    p->eval_temp = p->oam[p->eval_n * 4 + p->eval_m];
-                    if (p->eval_temp + 7 >= p->scanline && p->eval_temp <= p->scanline) {
-                        p->PPUSTATUS &= ~0x40;
-                    } else {
-                        p->eval_m++;
-                        if (++p->eval_n == 0)
-                            p->eval_stage = 4;
-                    }
-                    break;
-                case 4:
-                    p->eval_temp = p->oam[p->eval_n * 4];
-                    p->eval_n++;
-                    break;
-            }
-        } else if (p->eval_sn < 8) {
-            switch (p->eval_stage) {
-                case 0:
-                    p->secondary_oam[p->eval_sn * 4] = p->eval_temp;
-                    if (p->eval_temp + 7 >= p->scanline && p->eval_temp <= p->scanline)
-                        p->eval_stage = 1;
-                    else
-                        p->eval_stage = 2;
-                    break;
-                case 1:
-                    p->secondary_oam[p->eval_sn * 4 + p->eval_m] = p->eval_temp;
-                    if (p->eval_m == 3) {
-                        p->eval_stage = 2;
-                        p->eval_sn++;
-                        if (p->eval_n == 0)
-                            p->sprite0_next_line = true;
-                    }
-                    break;
-            }
+            eval_odd_cycle(p);
+        } else {
+            eval_even_cycle(p);
         }
     }
 }
