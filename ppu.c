@@ -205,22 +205,10 @@ uint16_t getSpriteAddr(ppu* p) {
 
 uint8_t flipByte(uint8_t data) {
     uint8_t new = 0;
-    if (data & 0x80)
-        new |= 0x1;
-    if (data & 0x40)
-        new |= 0x2;
-    if (data & 0x20)
-        new |= 0x4;
-    if (data & 0x10)
-        new |= 0x8;
-    if (data & 0x8)
-        new |= 0x10;
-    if (data & 0x4)
-        new |= 0x20;
-    if (data & 0x2)
-        new |= 0x40;
-    if (data & 0x1)
-        new |= 0x80;
+    for (int i = 0; i < 8; i++) {
+        if (data & (0x80 >> i))
+            new |= (0x1 << i);
+    }
     return new;
 }
 
