@@ -3,10 +3,12 @@
 
 #include "cpu.h"
 #include "ppu.h"
+#include "apu.h"
 
 struct nes {
     cpu* cpu;
     ppu* ppu;
+    apu *apu;
     uint16_t* address;
     uint16_t* dot;
     uint16_t* scanline;

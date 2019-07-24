@@ -38,6 +38,12 @@ void mapCPU_PPU(nes* n) {
     ppu_mapRegAccess(n->ppu, &n->reg_access);
 }
 
+void mapAPU(nes* n) {
+    apu_mapAddress(n->apu, n->address);
+    apu_mapRW(n->apu, n->write);
+    cpu_mapIRQ(n->cpu, apu_getIRQ(n->apu));
+}
+
 void nes_loadROM(nes* n, char* rom) {
     FILE* f = fopenCheck(rom, "rb");
     uint8_t header[16];
@@ -110,6 +116,7 @@ bool nes_stepCycle(nes* n) {
     } else {
         cpu_executeCycle(n->cpu);
     }
+    apu_executeCycle(n->apu);
     if ((*n->address & 0xe000) == 0x2000)
         n->reg_access = true;
     else
@@ -148,6 +155,8 @@ nes* nes_create() {
     nes* newNES = malloc(sizeof(nes));
     newNES->cpu = cpu_create();
     newNES->ppu = ppu_create();
+    newNES->apu = apu_create();
     mapCPU_PPU(newNES);
+    mapAPU(newNES);
     return newNES;
 }
