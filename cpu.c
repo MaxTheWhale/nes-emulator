@@ -97,13 +97,15 @@ void cpu_writeMemory(cpu* c, uint16_t address, uint8_t value) {
     *c->memory_write[address] = value;
 }
 
-
 void fetchOp(cpu* c) {
     c->currentOp = cpu_readMemory(c, c->pc);
     c->tick = 0;
     if (c->nmi_pending) {
         c->currentOp = 0;
         c->nmi_starting = true;
+        c->irq_pending = false;
+    } else if (c->irq_pending) {
+        c->currentOp = 0;
     } else {
         c->pc++;
     }
@@ -242,10 +244,11 @@ void writeIndirect(cpu* c) {
 }
 
 void pushBStatus(cpu* c) {
-    if (c->nmi_starting)
+    if (c->nmi_starting || c->irq_pending) {
         cpu_writeMemory(c, 0x100 + c->stackPointer, (c->flags & ~0x10) | 0x20);
-    else
+    } else {
         cpu_writeMemory(c, 0x100 + c->stackPointer, c->flags | 0x30);
+    }
     c->stackPointer--;
 }
 
@@ -283,7 +286,7 @@ void incPC(cpu* c) {
 
 void fetchValue(cpu* c) {
     c->temp = cpu_readMemory(c, c->pc);
-    if (!c->nmi_starting)
+    if (!c->nmi_starting && !c->irq_pending)
         c->pc++;
 }
 void readValue(cpu* c) {
@@ -1195,8 +1198,13 @@ void cpu_executeCycle(cpu* c) {
     c->tick++;
     c->write = false;
     c->ops[c->currentOp][c->tick](c);
-    if (!c->nmi_pending && !c->nmi_executing && !c->nmi_starting)
-        c->nmi_pending = (*c->nmi && !c->nmi_prev);
-    c->irq_pending = *c->irq;
+    
+    if (!c->nmi_executing && !c->nmi_starting) {
+        if (!c->nmi_pending)
+            c->nmi_pending = (*c->nmi && !c->nmi_prev);
+        c->irq_pending = *c->irq;
+        if (c->flags & IRQ_DISABLE)
+            c->irq_pending = false;
+    }
     c->nmi_prev = *c->nmi;
 }

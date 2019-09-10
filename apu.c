@@ -53,21 +53,22 @@ bool* apu_getIRQ(apu* a) {
 
 void apu_executeCycle(apu* a) {
     a->odd_cycle = !a->odd_cycle;
-    
-    switch (a->frame_tick++)
-    {
-    case 7457:  
-        break;
-    case 14913:  
-        break;
-    case 22371:  
-        break;
-    case 29828:  
-        break;
-    case 29829:  
-        break;
-    case 29830:
-        a->frame_tick = 0;  
-        break;
+    if (*a->cpu_address == APUCTRL)
+        a->irq = false;
+    switch (a->frame_tick++) {
+        case 7457:
+            break;
+        case 14913:
+            break;
+        case 22371:
+            break;
+        case 29828:
+            break;
+        case 29829:
+            break;
+        case 29830:
+            a->irq = true;
+            a->frame_tick = 0;
+            break;
     }
 }

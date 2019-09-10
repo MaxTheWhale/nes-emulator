@@ -147,8 +147,8 @@ bool nes_stepCycle(nes* n) {
 }
 
 void nes_emulateFrame(nes* n) {
-    while (!nes_stepCycle(n))
-        ;
+    while (!nes_stepCycle(n)) {
+    }
 }
 
 nes* nes_create() {
